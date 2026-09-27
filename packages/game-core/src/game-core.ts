@@ -1,5 +1,20 @@
 import { createDefaultCapabilitySpace } from './capabilities/capability-space.js';
 import type { CapabilityContext } from './capabilities/capability.js';
+import { isSupportedContextualElement } from './context/contextual-element.js';
+import {
+  createControlledGenerationContext,
+  type ControlledGenerationContext,
+  type GenerationPurpose,
+} from './context/controlled-generation-context.js';
+import {
+  createGameplayContext,
+  type GameplayContext,
+} from './context/gameplay-context.js';
+import {
+  createAcceptedGameplayContext,
+  type AcceptedGameplayContext,
+  type GameplayProposal,
+} from './context/gameplay-proposal.js';
 import { freezeDomainEvent } from './domain/domain-events.js';
 import { freezeGameState, type GameState } from './domain/game-state.js';
 import {
@@ -14,16 +29,6 @@ import {
   freezeTransition,
   type StateTransition,
 } from './domain/transitions.js';
-import {
-  createGameplayContext,
-  type GameplayContext,
-} from './context/gameplay-context.js';
-import {
-  createControlledGenerationContext,
-  type ControlledGenerationContext,
-  type GenerationPurpose,
-} from './context/controlled-generation-context.js';
-import { isSupportedContextualElement } from './context/contextual-element.js';
 
 export class GameCore {
   #state: GameState;
@@ -102,22 +107,71 @@ export class GameCore {
       return undefined;
     }
 
-    const relevantState = {
-      pet: {
-        name: this.#state.pet.name,
-        interactionCount: this.#state.pet.interactionCount,
-      },
-    };
-
-    const generationGameplayContext = {
-      contextualElements: gameplayContext.contextualElements,
-      applicableCapabilityIds: gameplayContext.applicableCapabilityIds,
-    };
+    const currentState = this.#state;
 
     return createControlledGenerationContext(
       generationPurpose,
-      relevantState,
-      generationGameplayContext,
+      {
+        pet: {
+          name: currentState.pet.name,
+          interactionCount: currentState.pet.interactionCount,
+        },
+      },
+      {
+        contextualElements: gameplayContext.contextualElements,
+        applicableCapabilityIds: gameplayContext.applicableCapabilityIds,
+      },
+    );
+  }
+
+  public acceptGameplayProposal(
+    controlledContext: ControlledGenerationContext,
+    proposal: GameplayProposal,
+  ): AcceptedGameplayContext | undefined {
+    const currentState = this.#state;
+
+    if (
+      proposal.generationPurpose !== controlledContext.generationPurpose ||
+      proposal.sourceStateVersion !== currentState.version
+    ) {
+      return undefined;
+    }
+
+    if (
+      controlledContext.relevantState.pet.name !== currentState.pet.name ||
+      controlledContext.relevantState.pet.interactionCount !==
+        currentState.pet.interactionCount
+    ) {
+      return undefined;
+    }
+
+    if (
+      !proposal.contextualElements.every((element) =>
+        isSupportedContextualElement(element),
+      )
+    ) {
+      return undefined;
+    }
+
+    const applicableCapabilityIds =
+      controlledContext.gameplayContext.applicableCapabilityIds;
+
+    if (
+      !proposal.capabilityIds.every((capabilityId) =>
+        applicableCapabilityIds.includes(capabilityId),
+      )
+    ) {
+      return undefined;
+    }
+
+    return createAcceptedGameplayContext(
+      {
+        playerId: currentState.player.id,
+        sourceStateVersion: proposal.sourceStateVersion,
+        contextualElements: proposal.contextualElements,
+        applicableCapabilityIds: proposal.capabilityIds,
+      },
+      proposal.narrative,
     );
   }
 

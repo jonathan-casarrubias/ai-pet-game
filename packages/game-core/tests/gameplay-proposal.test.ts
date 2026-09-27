@@ -1,4 +1,3 @@
-
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
@@ -6,6 +5,11 @@ import {
     createAcceptedGameplayContext,
     createGameplayProposal,
 } from '../src/context/gameplay-proposal.js';
+import {
+    createInitialGameState,
+    GameCore,
+    type ContextualElement,
+} from '../src/index.js';
 
 const contextualElements = [
     {
@@ -174,4 +178,174 @@ test('does not mutate the supplied gameplay context', () => {
     });
 
     assert.notEqual(accepted.gameplayContext, gameplayContext);
+});
+
+function createGameCore(): GameCore {
+    return new GameCore(
+        createInitialGameState(
+            { id: 'player-1' },
+            { id: 'pet-1', name: 'Sprout' },
+        ),
+    );
+}
+
+function createGenerationContext(gameCore: GameCore) {
+    const context = gameCore.createControlledGenerationContext(
+        'initial-adventure',
+        {
+            gameState: gameCore.getState(),
+            playerContext: {
+                playerId: 'player-1',
+                progressionLevel: 0,
+            },
+            contextualElement: contextualElements[0],
+        },
+    );
+
+    assert.ok(context);
+
+    return context;
+}
+
+test('accepts a valid gameplay proposal', () => {
+    const gameCore = createGameCore();
+    const controlledContext = createGenerationContext(gameCore);
+
+    const proposal = createGameplayProposal(
+        'initial-adventure',
+        gameCore.getState().version,
+        contextualElements,
+        ['observe'],
+        'A glowing blue stone catches the pet’s attention.',
+    );
+
+    const accepted = gameCore.acceptGameplayProposal(
+        controlledContext,
+        proposal,
+    );
+
+    assert.deepEqual(accepted, {
+        gameplayContext: {
+            playerId: 'player-1',
+            sourceStateVersion: 0,
+            contextualElements: [
+                {
+                    id: 'blue-stone',
+                    category: 'object',
+                    attributes: ['visible', 'glowing'],
+                },
+            ],
+            applicableCapabilityIds: ['observe'],
+        },
+        narrative: 'A glowing blue stone catches the pet’s attention.',
+    });
+});
+
+test('rejects a gameplay proposal with a different generation purpose', () => {
+    const gameCore = createGameCore();
+    const controlledContext = createGenerationContext(gameCore);
+
+    const proposal = createGameplayProposal(
+        'different-purpose',
+        gameCore.getState().version,
+        contextualElements,
+        ['observe'],
+        'A glowing blue stone catches the pet’s attention.',
+    );
+
+    const accepted = gameCore.acceptGameplayProposal(
+        controlledContext,
+        proposal,
+    );
+
+    assert.equal(accepted, undefined);
+});
+
+test('rejects a gameplay proposal from a different state version', () => {
+    const gameCore = createGameCore();
+    const controlledContext = createGenerationContext(gameCore);
+
+    const proposal = createGameplayProposal(
+        'initial-adventure',
+        gameCore.getState().version + 1,
+        contextualElements,
+        ['observe'],
+        'A glowing blue stone catches the pet’s attention.',
+    );
+
+    const accepted = gameCore.acceptGameplayProposal(
+        controlledContext,
+        proposal,
+    );
+
+    assert.equal(accepted, undefined);
+});
+
+test('rejects a gameplay proposal with an unsupported contextual element', () => {
+    const gameCore = createGameCore();
+    const controlledContext = createGenerationContext(gameCore);
+
+    const unsupportedElement: ContextualElement = {
+        id: 'unknown-element',
+        category: 'unsupported-category',
+        attributes: [],
+    };
+
+    const proposal = createGameplayProposal(
+        'initial-adventure',
+        gameCore.getState().version,
+        [unsupportedElement],
+        ['observe'],
+        'The pet notices something unusual.',
+    );
+
+    const accepted = gameCore.acceptGameplayProposal(
+        controlledContext,
+        proposal,
+    );
+
+    assert.equal(accepted, undefined);
+});
+
+test('rejects a gameplay proposal with a capability outside the applicable set', () => {
+    const gameCore = createGameCore();
+    const controlledContext = createGenerationContext(gameCore);
+
+    const proposal = createGameplayProposal(
+        'initial-adventure',
+        gameCore.getState().version,
+        contextualElements,
+        ['observe', 'unknown-capability'],
+        'A glowing blue stone catches the pet’s attention.',
+    );
+
+    const accepted = gameCore.acceptGameplayProposal(
+        controlledContext,
+        proposal,
+    );
+
+    assert.equal(accepted, undefined);
+});
+
+test('does not mutate Game Core state when accepting a gameplay proposal', () => {
+    const gameCore = createGameCore();
+    const controlledContext = createGenerationContext(gameCore);
+    const stateBefore = gameCore.getState();
+
+    const proposal = createGameplayProposal(
+        'initial-adventure',
+        stateBefore.version,
+        contextualElements,
+        ['observe'],
+        'A glowing blue stone catches the pet’s attention.',
+    );
+
+    const accepted = gameCore.acceptGameplayProposal(
+        controlledContext,
+        proposal,
+    );
+
+    assert.ok(accepted);
+    assert.equal(gameCore.getState(), stateBefore);
+    assert.deepEqual(gameCore.getState(), stateBefore);
 });
