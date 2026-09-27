@@ -141,6 +141,7 @@ Current approved architectural decisions are:
 * ADR-005: Cloudflare Workers is the backend runtime.
 * ADR-006: AI and Game Core communicate through a controlled proposal contract.
 * ADR-007: AI-driven player experience uses bounded generation rather than bounded selection.
+* ADR-008: [Provider-Agnostic AI Model Capabilities](knowledge/decisions/ADR-008-provider-agnostic-ai-model-capabilities.md) — AI/model integration is capability-oriented, not model-oriented; `GenerationProvider` is the first concrete capability, and future capabilities such as `DecisionProvider` must only be introduced when a concrete requirement exists.
 
 Before making significant changes to architecture or Game Core, inspect the relevant ADRs in `knowledge/decisions/`, relevant documentation in `knowledge/`, and relevant skills in `skills/`.
 
@@ -251,8 +252,13 @@ AI must not:
 AI providers/models must remain replaceable.
 
 The current development baseline uses Ollama locally.
-
-The architecture should remain provider/model agnostic.
+AI/model integration is **capability-oriented, not model-oriented**.
+The architecture does not treat AI models primarily as "LLMs" or "chat models"; instead, it defines capability-specific abstractions such as `GenerationProvider` for content and gameplay generation.
+Future capabilities (e.g., `DecisionProvider`) must only be introduced when a concrete requirement exists.
+`GenerationProvider` is the first capability being implemented, with Ollama + Qwen3 as its initial concrete adapter.
+Replacing Ollama, Qwen3, or any other specific provider must not require changes to Game Core.
+AI/model providers never become authoritative over Game Core.
+The full architectural decision is documented in [ADR-008 — Provider-Agnostic AI Model Capabilities](knowledge/decisions/ADR-008-provider-agnostic-ai-model-capabilities.md).
 
 Vercel AI SDK may be used as the AI abstraction layer.
 
@@ -543,6 +549,7 @@ When a significant architectural decision is required:
 Current approved architectural decisions are:
 
 * ADR-001: Game Core is authoritative for game state and rules.
+* ADR-008: [Provider-Agnostic AI Model Capabilities](knowledge/decisions/ADR-008-provider-agnostic-ai-model-capabilities.md) — AI/model integration is capability-oriented, not model-oriented.
 * ADR-002: AI is a bounded narrative and creative engine.
 * ADR-003: Game Core is independent of the UI framework.
 * ADR-004: PostgreSQL with Neon is the persistence database.

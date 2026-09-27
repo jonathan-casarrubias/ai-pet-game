@@ -67,6 +67,7 @@ ADRs are the authoritative source for explicit architectural decisions. Consult 
 | [`decisions/ADR-005-cloudflare-workers-backend-runtime.md`](decisions/ADR-005-cloudflare-workers-backend-runtime.md) | Cloudflare Workers with Express is the selected backend runtime for the MVP and future production foundation. |
 | [`decisions/ADR-006-ai-game-core-contract.md`](decisions/ADR-006-ai-game-core-contract.md) | AI and Game Core communicate through a controlled, structured, validated proposal contract. |
 | [`decisions/ADR-007-ai-driven-player-experience.md`](decisions/ADR-007-ai-driven-player-experience.md) | AI generates novel gameplay within a bounded capability space rather than selecting from a finite experience catalog. |
+| [`decisions/ADR-008-provider-agnostic-ai-model-capabilities.md`](decisions/ADR-008-provider-agnostic-ai-model-capabilities.md) | AI/model integration is capability-oriented, not model-oriented; Game Core remains independent of Ollama, Qwen3, and any specific provider; `GenerationProvider` is the first concrete capability, with future capabilities like `DecisionProvider` deferred until a concrete requirement exists. |
 
 ## AI
 
