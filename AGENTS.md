@@ -546,16 +546,6 @@ When a significant architectural decision is required:
 4. Keep implementation details out of ADRs unless they are part of the actual decision.
 5. Do not silently introduce an architectural change through implementation.
 
-Current approved architectural decisions are:
-
-* ADR-001: Game Core is authoritative for game state and rules.
-* ADR-008: [Provider-Agnostic AI Model Capabilities](knowledge/decisions/ADR-008-provider-agnostic-ai-model-capabilities.md) — AI/model integration is capability-oriented, not model-oriented.
-* ADR-002: AI is a bounded narrative and creative engine.
-* ADR-003: Game Core is independent of the UI framework.
-* ADR-004: PostgreSQL with Neon is the persistence database.
-* ADR-005: Cloudflare Workers is the backend runtime.
-* ADR-006: AI and Game Core communicate through a controlled proposal contract.
-* ADR-007: AI-driven player experience uses bounded generation rather than bounded selection.
 
 ---
 
