@@ -231,7 +231,7 @@ test('creates a GameplayContext from the current authoritative state', () => {
     playerId: 'player-1',
     sourceStateVersion: 0,
     contextualElements: [contextualElement],
-    applicableCapabilityIds: ['observe'],
+    applicableCapabilityIds: ['observe', 'explore'],
   });
 });
 
@@ -261,7 +261,7 @@ test('derives GameplayContext capabilities instead of exposing caller declaratio
         attributes: ['visible'],
       },
     ],
-    applicableCapabilityIds: ['observe'],
+    applicableCapabilityIds: ['observe', 'explore'],
   });
 });
 
@@ -371,7 +371,7 @@ test('creates a controlled generation context from validated runtime context', (
     },
     gameplayContext: {
       contextualElements: [contextualElement],
-      applicableCapabilityIds: ['observe'],
+      applicableCapabilityIds: ['observe', 'explore'],
     },
     boundaries: {
       safety: 'game-core-enforced',
@@ -771,16 +771,22 @@ test('produces a domain event for an accepted pet interaction', () => {
   });
 });
 
+
 test('accepts a valid pet question and produces a bounded domain event', () => {
   const gameCore = new GameCore(initialState);
+
   const transition = gameCore.evaluate({
     playerId: 'player-1',
     type: 'ask_pet_question',
     question: 'Why is the sky blue?',
   });
+
   assert.ok(transition.accepted, 'valid question should be accepted');
+
   assert.strictEqual(transition.state.version, 1);
+
   assert.strictEqual(transition.state.pet.interactionCount, 1);
+
   assert.deepStrictEqual(transition.state, {
     player: { id: 'player-1' },
     pet: {
@@ -789,7 +795,9 @@ test('accepts a valid pet question and produces a bounded domain event', () => {
       interactionCount: 1,
     },
     version: 1,
+    discoveries: [],
   });
+
   assert.deepStrictEqual(transition.events, [
     {
       type: 'pet_question_asked',
@@ -799,6 +807,7 @@ test('accepts a valid pet question and produces a bounded domain event', () => {
     },
   ]);
 });
+
 
 test('rejects a pet question with a missing question without mutating state', () => {
   const gameCore = new GameCore(initialState);

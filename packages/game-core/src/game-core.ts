@@ -18,9 +18,11 @@ import {
 import { freezeDomainEvent } from './domain/domain-events.js';
 import { freezeGameState, type GameState } from './domain/game-state.js';
 import {
+  isExplorePlayerAction,
   isObservePlayerAction,
   isSupportedIntentType,
   isValidPlayerAction,
+  type ExplorePlayerAction,
   type ObservePlayerAction,
   type PlayerAction,
 } from './domain/player-actions.js';
@@ -173,6 +175,7 @@ export class GameCore {
         applicableCapabilityIds: proposal.capabilityIds,
       },
       proposal.narrative,
+      proposal.activityId,
     );
   }
 
@@ -194,6 +197,10 @@ export class GameCore {
       return this.evaluateObserveAction(previousState, action, context);
     }
 
+    if (isExplorePlayerAction(action)) {
+      return this.evaluateExploreAction(previousState, action, context);
+    }
+
     if (!isSupportedIntentType(action.type)) {
       return createRejectedTransition(previousState, 'unsupported_intent');
     }
@@ -205,6 +212,7 @@ export class GameCore {
         interactionCount: previousState.pet.interactionCount + 1,
       },
       version: previousState.version + 1,
+      discoveries: [...previousState.discoveries],
     });
 
     const event = freezeDomainEvent(
@@ -261,6 +269,7 @@ export class GameCore {
       player: previousState.player,
       pet: previousState.pet,
       version: previousState.version + 1,
+      discoveries: [...previousState.discoveries],
     });
 
     const event = freezeDomainEvent({
@@ -268,6 +277,59 @@ export class GameCore {
       capabilityId: 'observe',
       playerId: previousState.player.id,
       elementId: action.elementId,
+    });
+
+    const transition = freezeTransition({
+      accepted: true,
+      previousState,
+      state: nextState,
+      events: [event],
+    });
+
+    this.#state = nextState;
+    return transition;
+  }
+
+  private evaluateExploreAction(
+    previousState: GameState,
+    action: ExplorePlayerAction,
+    context: CapabilityContext | undefined,
+  ): StateTransition {
+    if (
+      context === undefined ||
+      !isCurrentGameState(context.gameState, previousState) ||
+      context.playerContext.playerId !== previousState.player.id ||
+      context.contextualElement?.id !== action.elementId
+    ) {
+      return createRejectedTransition(previousState, 'inapplicable_action');
+    }
+
+    const applicability = this.#capabilitySpace.evaluateApplicability(
+      'explore',
+      context,
+    );
+
+    if (!applicability.applicable) {
+      return createRejectedTransition(previousState, 'inapplicable_action');
+    }
+
+    const nextState = freezeGameState({
+      player: previousState.player,
+      pet: {
+        ...previousState.pet,
+        interactionCount: previousState.pet.interactionCount + 1,
+      },
+      version: previousState.version + 1,
+      discoveries: [...previousState.discoveries, action.elementId],
+    });
+
+    const event = freezeDomainEvent({
+      type: 'discovery_made',
+      capabilityId: 'explore',
+      playerId: previousState.player.id,
+      petId: previousState.pet.id,
+      elementId: action.elementId,
+      interactionCount: nextState.pet.interactionCount,
     });
 
     const transition = freezeTransition({

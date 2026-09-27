@@ -12,6 +12,7 @@ export type GameState = Readonly<{
   player: Player;
   pet: Pet;
   version: number;
+  discoveries: readonly string[];
 }>;
 
 export function createInitialGameState(
@@ -26,6 +27,7 @@ export function createInitialGameState(
       interactionCount: 0,
     },
     version: 0,
+    discoveries: [],
   });
 }
 
@@ -34,5 +36,6 @@ export function freezeGameState(state: GameState): GameState {
     player: Object.freeze({ ...state.player }),
     pet: Object.freeze({ ...state.pet }),
     version: state.version,
+    discoveries: Object.freeze([...state.discoveries]),
   });
 }

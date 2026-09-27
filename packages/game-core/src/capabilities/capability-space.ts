@@ -4,6 +4,7 @@ import type {
   CapabilityDefinition,
 } from './capability.js';
 import { observeCapability } from './observe.js';
+import { exploreCapability } from './explore.js';
 
 export class CapabilitySpace {
   #capabilities: readonly CapabilityDefinition[];
@@ -61,5 +62,5 @@ export class CapabilitySpace {
 }
 
 export function createDefaultCapabilitySpace(): CapabilitySpace {
-  return new CapabilitySpace([observeCapability]);
+  return new CapabilitySpace([observeCapability, exploreCapability]);
 }

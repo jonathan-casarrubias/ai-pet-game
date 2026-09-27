@@ -16,6 +16,14 @@ export type DomainEvent =
       capabilityId: 'observe';
       playerId: string;
       elementId: string;
+    }>
+  | Readonly<{
+      type: 'discovery_made';
+      capabilityId: 'explore';
+      playerId: string;
+      petId: string;
+      elementId: string;
+      interactionCount: number;
     }>;
 
 export function freezeDomainEvent(event: DomainEvent): DomainEvent {

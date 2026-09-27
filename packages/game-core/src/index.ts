@@ -5,6 +5,7 @@ export {
   createDefaultCapabilitySpace,
 } from './capabilities/capability-space.js';
 export { observeCapability } from './capabilities/observe.js';
+export { exploreCapability } from './capabilities/explore.js';
 export type {
   CapabilityApplicability,
   CapabilityContext,
@@ -31,6 +32,7 @@ export {
   type Player,
 } from './domain/game-state.js';
 export type {
+  ExplorePlayerAction,
   ObservePlayerAction,
   PlayerAction,
   PlayerIntent,
@@ -39,9 +41,10 @@ export type {
   RejectionReason,
   StateTransition,
 } from './domain/transitions.js';
-export type {
-  AcceptedGameplayContext,
-  GameplayProposal,
+export {
+  createGameplayProposal,
+  type AcceptedGameplayContext,
+  type GameplayProposal,
 } from './context/gameplay-proposal.js';
 export type { GameplayGenerator } from './generation/gameplay-generator.js';
 export { DeterministicGameplayGenerator } from './generation/deterministic-gameplay-generator.js';

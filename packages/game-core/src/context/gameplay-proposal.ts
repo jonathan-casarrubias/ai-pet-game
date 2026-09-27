@@ -6,6 +6,7 @@ export type GameplayProposal = Readonly<{
   contextualElements: readonly ContextualElement[];
   capabilityIds: readonly string[];
   narrative: string;
+  activityId?: string;
 }>;
 
 export type AcceptedGameplayContext = Readonly<{
@@ -16,6 +17,7 @@ export type AcceptedGameplayContext = Readonly<{
     applicableCapabilityIds: readonly string[];
   }>;
   narrative: string;
+  activityId?: string;
 }>;
 
 export function createGameplayProposal(
@@ -24,6 +26,7 @@ export function createGameplayProposal(
   contextualElements: readonly ContextualElement[],
   capabilityIds: readonly string[],
   narrative: string,
+  activityId?: string,
 ): GameplayProposal {
   return Object.freeze({
     generationPurpose,
@@ -39,6 +42,7 @@ export function createGameplayProposal(
     ),
     capabilityIds: Object.freeze([...capabilityIds]),
     narrative,
+    ...(activityId !== undefined ? { activityId } : {}),
   });
 }
 
@@ -50,6 +54,7 @@ export function createAcceptedGameplayContext(
     applicableCapabilityIds: readonly string[];
   }>,
   narrative: string,
+  activityId?: string,
 ): AcceptedGameplayContext {
   return Object.freeze({
     gameplayContext: Object.freeze({
@@ -69,5 +74,6 @@ export function createAcceptedGameplayContext(
       ]),
     }),
     narrative,
+    ...(activityId !== undefined ? { activityId } : {}),
   });
 }
