@@ -17,6 +17,11 @@ export {
 } from './context/contextual-element.js';
 export type { ContextualElement } from './context/contextual-element.js';
 export type { GameplayContext } from './context/gameplay-context.js';
+export type {
+  ControlledGenerationContext,
+  GenerationBoundaries,
+  GenerationPurpose,
+} from './context/controlled-generation-context.js';
 
 export type { DomainEvent } from './domain/domain-events.js';
 export {

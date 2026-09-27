@@ -368,6 +368,156 @@ test('does not mutate authoritative state when creating a GameplayContext', () =
   assert.strictEqual(gameCore.getState().version, 0);
 });
 
+test('creates a controlled generation context from validated runtime context', () => {
+  const gameCore = new GameCore(initialState);
+  const contextualElement: ContextualElement = {
+    id: 'generation-object',
+    category: 'object',
+    attributes: ['visible'],
+  };
+
+  const controlledContext = gameCore.createControlledGenerationContext(
+    'initial_gameplay',
+    createObserveContext(gameCore, contextualElement),
+  );
+
+  assert.deepStrictEqual(controlledContext, {
+    generationPurpose: 'initial_gameplay',
+    gameplayContext: {
+      playerId: 'player-1',
+      sourceStateVersion: 0,
+      contextualElements: [contextualElement],
+      applicableCapabilityIds: ['observe'],
+    },
+    boundaries: {
+      safety: 'game-core-enforced',
+      domain: 'game-core-enforced',
+      data: 'purpose-scoped',
+    },
+  });
+});
+
+test('does not expose complete GameState or an AI proposal in controlled context', () => {
+  const gameCore = new GameCore(initialState);
+  const controlledContext = gameCore.createControlledGenerationContext(
+    'subsequent_gameplay',
+    createObserveContext(gameCore, {
+      id: 'generation-phenomenon',
+      category: 'phenomenon',
+      attributes: ['visible', 'glowing'],
+    }),
+  );
+
+  assert.ok(controlledContext);
+  assert.deepStrictEqual(Object.keys(controlledContext).sort(), [
+    'boundaries',
+    'gameplayContext',
+    'generationPurpose',
+  ]);
+  assert.ok(!('gameState' in controlledContext));
+  assert.ok(!('proposal' in controlledContext));
+});
+
+test('rejects controlled generation context for invalid source context', () => {
+  const gameCore = new GameCore(initialState);
+  const contextualElement: ContextualElement = {
+    id: 'generation-object',
+    category: 'object',
+    attributes: ['visible'],
+  };
+
+  assert.strictEqual(
+    gameCore.createControlledGenerationContext(
+      'initial_gameplay',
+      {
+        ...createObserveContext(gameCore, contextualElement),
+        playerContext: {
+          playerId: 'player-2',
+          progressionLevel: 0,
+        },
+      },
+    ),
+    undefined,
+  );
+});
+
+test('rejects controlled generation context from stale authoritative state', () => {
+  const gameCore = new GameCore(initialState);
+  const capturedContext = createObserveContext(gameCore, {
+    id: 'generation-object',
+    category: 'object',
+    attributes: ['visible'],
+  });
+
+  const acceptedTransition = gameCore.evaluate({
+    playerId: 'player-1',
+    type: 'greet_pet',
+  });
+
+  assert.ok(acceptedTransition.accepted);
+  assert.strictEqual(
+    gameCore.createControlledGenerationContext(
+      'subsequent_gameplay',
+      capturedContext,
+    ),
+    undefined,
+  );
+  assert.strictEqual(gameCore.getState().version, 1);
+});
+
+test('keeps controlled generation context immutable and does not mutate state', () => {
+  const gameCore = new GameCore(initialState);
+  const stateBeforeCreation = gameCore.getState();
+  const controlledContext = gameCore.createControlledGenerationContext(
+    'initial_gameplay',
+    createObserveContext(gameCore, {
+      id: 'generation-object',
+      category: 'object',
+      attributes: ['visible'],
+    }),
+  );
+
+  assert.ok(controlledContext);
+  assert.ok(Object.isFrozen(controlledContext));
+  assert.ok(Object.isFrozen(controlledContext.gameplayContext));
+  assert.ok(Object.isFrozen(controlledContext.boundaries));
+  assert.strictEqual(gameCore.getState(), stateBeforeCreation);
+  assert.strictEqual(gameCore.getState().version, 0);
+});
+
+test('rejects controlled generation context with an empty generation purpose', () => {
+  const gameCore = new GameCore(initialState);
+
+  assert.strictEqual(
+    gameCore.createControlledGenerationContext(
+      '',
+      createObserveContext(gameCore, {
+        id: 'generation-object',
+        category: 'object',
+        attributes: ['visible'],
+      }),
+    ),
+    undefined,
+  );
+});
+
+test('rejects controlled generation context with a whitespace-only generation purpose', () => {
+  const gameCore = new GameCore(initialState);
+
+  assert.strictEqual(
+    gameCore.createControlledGenerationContext(
+      '   ',
+      createObserveContext(gameCore, {
+        id: 'generation-object',
+        category: 'object',
+        attributes: ['visible'],
+      }),
+    ),
+    undefined,
+  );
+});
+
+
 test('keeps contextual elements non-authoritative', () => {
   const gameCore = new GameCore(initialState);
   const contextualElement: ContextualElement = {

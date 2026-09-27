@@ -18,6 +18,11 @@ import {
   createGameplayContext,
   type GameplayContext,
 } from './context/gameplay-context.js';
+import {
+  createControlledGenerationContext,
+  type ControlledGenerationContext,
+  type GenerationPurpose,
+} from './context/controlled-generation-context.js';
 import { isSupportedContextualElement } from './context/contextual-element.js';
 
 export class GameCore {
@@ -76,6 +81,29 @@ export class GameCore {
       currentState.version,
       contextualElement === undefined ? [] : [contextualElement],
       applicableCapabilityIds,
+    );
+  }
+
+  public createControlledGenerationContext(
+    generationPurpose: GenerationPurpose,
+    context: CapabilityContext,
+  ): ControlledGenerationContext | undefined {
+    if (
+      typeof generationPurpose !== 'string' ||
+      generationPurpose.trim().length === 0
+    ) {
+      return undefined;
+    }
+
+    const gameplayContext = this.createGameplayContext(context);
+
+    if (gameplayContext === undefined) {
+      return undefined;
+    }
+
+    return createControlledGenerationContext(
+      generationPurpose,
+      gameplayContext,
     );
   }
 
