@@ -39,3 +39,7 @@ export type {
   RejectionReason,
   StateTransition,
 } from './domain/transitions.js';
+export type {
+  AcceptedGameplayContext,
+  GameplayProposal,
+} from './context/gameplay-proposal.js';

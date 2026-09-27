@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "test": "npm run build && node --test dist/tests/game-core.test.js",
+    "test": "npm run build && node --test \"dist/tests/**/*.test.js\"",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {
