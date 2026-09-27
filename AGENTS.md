@@ -136,6 +136,7 @@ Current approved architectural decisions are:
 * ADR-003: Game Core is independent of the UI framework.
 * ADR-004: PostgreSQL with Neon is the persistence database.
 * ADR-005: Cloudflare Workers is the backend runtime.
+* ADR-006: AI and Game Core communicate through a controlled proposal contract.
 
 Before making significant changes to architecture or Game Core, inspect the relevant ADRs in `knowledge/decisions/`, relevant documentation in `knowledge/`, and relevant skills in `skills/`.
 
@@ -542,6 +543,7 @@ Current approved architectural decisions are:
 * ADR-003: Game Core is independent of the UI framework.
 * ADR-004: PostgreSQL with Neon is the persistence database.
 * ADR-005: Cloudflare Workers is the backend runtime.
+* ADR-006: AI and Game Core communicate through a controlled proposal contract.
 
 ---
 
