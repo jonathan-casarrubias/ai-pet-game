@@ -415,8 +415,6 @@ test('creates a controlled generation context from validated runtime context', (
       },
     },
     gameplayContext: {
-      playerId: 'player-1',
-      sourceStateVersion: 0,
       contextualElements: [contextualElement],
       applicableCapabilityIds: ['observe'],
     },

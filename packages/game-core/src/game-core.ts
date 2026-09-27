@@ -65,6 +65,7 @@ export class GameCore {
         ? {}
         : { contextualElement }),
     };
+
     const applicableCapabilityIds = this.#capabilitySpace
       .getSupportedCapabilities()
       .filter(
@@ -108,10 +109,15 @@ export class GameCore {
       },
     };
 
+    const generationGameplayContext = {
+      contextualElements: gameplayContext.contextualElements,
+      applicableCapabilityIds: gameplayContext.applicableCapabilityIds,
+    };
+
     return createControlledGenerationContext(
       generationPurpose,
       relevantState,
-      gameplayContext,
+      generationGameplayContext,
     );
   }
 
@@ -145,6 +151,7 @@ export class GameCore {
       },
       version: previousState.version + 1,
     });
+
     const event = freezeDomainEvent(
       action.type === 'ask_pet_question'
         ? {
@@ -160,6 +167,7 @@ export class GameCore {
             interactionCount: nextState.pet.interactionCount,
           },
     );
+
     const transition = freezeTransition({
       accepted: true,
       previousState,
@@ -199,12 +207,14 @@ export class GameCore {
       pet: previousState.pet,
       version: previousState.version + 1,
     });
+
     const event = freezeDomainEvent({
       type: 'contextual_element_observed',
       capabilityId: 'observe',
       playerId: previousState.player.id,
       elementId: action.elementId,
     });
+
     const transition = freezeTransition({
       accepted: true,
       previousState,

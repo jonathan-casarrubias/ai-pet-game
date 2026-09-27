@@ -1,4 +1,4 @@
-import type { GameplayContext } from './gameplay-context.js';
+import type { ContextualElement } from './contextual-element.js';
 
 export type GenerationPurpose = string;
 
@@ -7,6 +7,11 @@ export type RelevantGenerationState = Readonly<{
     name: string;
     interactionCount: number;
   }>;
+}>;
+
+export type GenerationGameplayContext = Readonly<{
+  contextualElements: readonly ContextualElement[];
+  applicableCapabilityIds: readonly string[];
 }>;
 
 export type GenerationBoundaries = Readonly<{
@@ -18,7 +23,7 @@ export type GenerationBoundaries = Readonly<{
 export type ControlledGenerationContext = Readonly<{
   generationPurpose: GenerationPurpose;
   relevantState: RelevantGenerationState;
-  gameplayContext: GameplayContext;
+  gameplayContext: GenerationGameplayContext;
   boundaries: GenerationBoundaries;
 }>;
 
@@ -31,7 +36,7 @@ const generationBoundaries: GenerationBoundaries = Object.freeze({
 export function createControlledGenerationContext(
   generationPurpose: GenerationPurpose,
   relevantState: RelevantGenerationState,
-  gameplayContext: GameplayContext,
+  gameplayContext: GenerationGameplayContext,
 ): ControlledGenerationContext {
   return Object.freeze({
     generationPurpose,
@@ -41,7 +46,20 @@ export function createControlledGenerationContext(
         interactionCount: relevantState.pet.interactionCount,
       }),
     }),
-    gameplayContext,
+    gameplayContext: Object.freeze({
+      contextualElements: Object.freeze(
+        gameplayContext.contextualElements.map((element) =>
+          Object.freeze({
+            id: element.id,
+            category: element.category,
+            attributes: Object.freeze([...element.attributes]),
+          }),
+        ),
+      ),
+      applicableCapabilityIds: Object.freeze([
+        ...gameplayContext.applicableCapabilityIds,
+      ]),
+    }),
     boundaries: generationBoundaries,
   });
 }
