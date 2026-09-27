@@ -24,6 +24,20 @@ export type {
   GenerationPurpose,
 } from './context/controlled-generation-context.js';
 
+export {
+  createProposalRejection,
+  type ProposalRejection,
+  type ProposalRejectionCode,
+} from './context/proposal-rejection.js';
+
+export {
+  type ProposalValidationResult,
+} from './context/proposal-validation-result.js';
+
+export {
+  type ProposalResolutionResult,
+} from './context/proposal-resolution-result.js';
+
 export type { DomainEvent } from './domain/domain-events.js';
 export {
   createInitialGameState,
@@ -48,3 +62,7 @@ export {
 } from './context/gameplay-proposal.js';
 export type { GameplayGenerator } from './generation/gameplay-generator.js';
 export { DeterministicGameplayGenerator } from './generation/deterministic-gameplay-generator.js';
+export type {
+  CorrectionAttempt,
+  ProposalCorrector,
+} from './generation/proposal-corrector.js';

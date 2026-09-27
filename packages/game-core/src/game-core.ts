@@ -12,9 +12,24 @@ import {
 } from './context/gameplay-context.js';
 import {
   createAcceptedGameplayContext,
+  createGameplayProposal,
   type AcceptedGameplayContext,
   type GameplayProposal,
 } from './context/gameplay-proposal.js';
+import {
+  createProposalRejection,
+  type ProposalRejection,
+} from './context/proposal-rejection.js';
+import {
+  type ProposalValidationResult,
+} from './context/proposal-validation-result.js';
+import {
+  type ProposalResolutionResult,
+} from './context/proposal-resolution-result.js';
+import {
+  type CorrectionAttempt,
+  type ProposalCorrector,
+} from './generation/proposal-corrector.js';
 import { freezeDomainEvent } from './domain/domain-events.js';
 import { freezeGameState, type GameState } from './domain/game-state.js';
 import {
@@ -129,55 +144,224 @@ export class GameCore {
     );
   }
 
-  public acceptGameplayProposal(
+  /**
+   * Validates a gameplay proposal against the current game state and controlled context.
+   * Returns structured validation results including rejection details when invalid.
+   */
+  public validateGameplayProposal(
     controlledContext: ControlledGenerationContext,
     proposal: GameplayProposal,
-  ): AcceptedGameplayContext | undefined {
+  ): ProposalValidationResult {
     const currentState = this.#state;
+    const applicableCapabilityIds =
+      controlledContext.gameplayContext.applicableCapabilityIds;
 
-    if (
-      proposal.generationPurpose !== controlledContext.generationPurpose ||
-      proposal.sourceStateVersion !== currentState.version
-    ) {
-      return undefined;
+    // Check generation purpose first
+    if (proposal.generationPurpose !== controlledContext.generationPurpose) {
+      return {
+        valid: false,
+        rejection: createProposalRejection(
+          'INVALID_PURPOSE',
+          'The proposal purpose does not match the current context.',
+          applicableCapabilityIds,
+        ),
+      };
     }
 
+    // Check state version separately
+    if (proposal.sourceStateVersion !== currentState.version) {
+      return {
+        valid: false,
+        rejection: createProposalRejection(
+          'STALE_STATE_VERSION',
+          'The proposal source state version does not match the current game state.',
+          applicableCapabilityIds,
+        ),
+      };
+    }
+
+    // Check pet identity
     if (
       controlledContext.relevantState.pet.name !== currentState.pet.name ||
       controlledContext.relevantState.pet.interactionCount !==
         currentState.pet.interactionCount
     ) {
-      return undefined;
+      return {
+        valid: false,
+        rejection: createProposalRejection(
+          'PET_MISMATCH',
+          'The proposal references a different pet than the current state.',
+          applicableCapabilityIds,
+        ),
+      };
     }
 
+    // Check contextual elements
     if (
       !proposal.contextualElements.every((element) =>
         isSupportedContextualElement(element),
       )
     ) {
-      return undefined;
+      return {
+        valid: false,
+        rejection: createProposalRejection(
+          'UNSUPPORTED_CONTEXTUAL_ELEMENT',
+          'The proposal contains a contextual element that is not supported in this context.',
+          applicableCapabilityIds,
+        ),
+      };
     }
 
-    const applicableCapabilityIds =
-      controlledContext.gameplayContext.applicableCapabilityIds;
-
+    // Check capabilities
     if (
       !proposal.capabilityIds.every((capabilityId) =>
         applicableCapabilityIds.includes(capabilityId),
       )
     ) {
+      return {
+        valid: false,
+        rejection: createProposalRejection(
+          'INVALID_CAPABILITY',
+          'The proposal contains capabilities not applicable in this context.',
+          applicableCapabilityIds,
+        ),
+      };
+    }
+
+    // All validations passed - return accepted context
+    return {
+      valid: true,
+      context: createAcceptedGameplayContext(
+        {
+          playerId: currentState.player.id,
+          sourceStateVersion: proposal.sourceStateVersion,
+          contextualElements: proposal.contextualElements,
+          applicableCapabilityIds: proposal.capabilityIds,
+        },
+        proposal.narrative,
+        proposal.activityId,
+      ),
+    };
+  }
+
+  /**
+   * Accepts a gameplay proposal and returns the accepted context.
+   * Preserves existing contract: returns undefined if proposal is invalid.
+   */
+  public acceptGameplayProposal(
+    controlledContext: ControlledGenerationContext,
+    proposal: GameplayProposal,
+  ): AcceptedGameplayContext | undefined {
+    const validation = this.validateGameplayProposal(controlledContext, proposal);
+
+    if (!validation.valid) {
       return undefined;
     }
 
-    return createAcceptedGameplayContext(
-      {
-        playerId: currentState.player.id,
-        sourceStateVersion: proposal.sourceStateVersion,
-        contextualElements: proposal.contextualElements,
-        applicableCapabilityIds: proposal.capabilityIds,
-      },
-      proposal.narrative,
-      proposal.activityId,
+    return validation.context;
+  }
+
+  /**
+   * Orchestrates the bounded proposal resolution flow:
+   * 1. Validate original proposal
+   * 2. If valid, accept
+   * 3. If rejected, invoke exactly one correction attempt
+   * 4. Validate corrected proposal
+   * 5. If valid, accept
+   * 6. If rejected, produce and validate fallback
+   * 
+   * Returns result indicating which path was taken.
+   */
+  public resolveGameplayProposal(
+    controlledContext: ControlledGenerationContext,
+    originalProposal: GameplayProposal,
+    corrector: ProposalCorrector,
+  ): ProposalResolutionResult {
+    // Step 1: Validate original proposal
+    const originalValidation = this.validateGameplayProposal(controlledContext, originalProposal);
+    
+    if (originalValidation.valid) {
+      return {
+        acceptedFrom: 'original',
+        context: originalValidation.context,
+      };
+    }
+
+    // Step 2: Invoke exactly one correction attempt
+    const correctionAttempt: CorrectionAttempt = {
+      controlledContext,
+      original: originalProposal,
+      rejection: originalValidation.rejection,
+    };
+    
+    const correctedProposal = corrector.correct(correctionAttempt);
+
+    // Step 3: Validate corrected proposal
+    const correctedValidation = this.validateGameplayProposal(controlledContext, correctedProposal);
+    
+    if (correctedValidation.valid) {
+      return {
+        acceptedFrom: 'corrected',
+        context: correctedValidation.context,
+      };
+    }
+
+    // Step 4: Produce and validate fallback
+    const fallbackProposal = this.produceFallback(controlledContext, correctedValidation.rejection);
+    const fallbackValidation = this.validateGameplayProposal(controlledContext, fallbackProposal);
+
+    // Fallback should always be valid by construction, but validate for safety
+    if (!fallbackValidation.valid) {
+      // This should never happen in normal operation
+      throw new Error('Fallback proposal failed validation: ' + fallbackValidation.rejection.message);
+    }
+
+    return {
+      acceptedFrom: 'fallback',
+      context: fallbackValidation.context,
+    };
+  }
+
+  /**
+   * Produces a deterministic fallback proposal when correction fails.
+   * Uses existing deterministic generation logic based on controlled context.
+   */
+  public produceFallback(
+    controlledContext: ControlledGenerationContext,
+    _rejection: ProposalRejection,
+  ): GameplayProposal {
+    const applicableCapabilityIds = controlledContext.gameplayContext.applicableCapabilityIds;
+    const contextualElement = controlledContext.gameplayContext.contextualElements[0];
+    const petName = controlledContext.relevantState.pet.name;
+    const discoveryCount = controlledContext.relevantState.discoveryCount;
+    const recentDiscoveries = controlledContext.relevantState.recentDiscoveries;
+
+    let narrative: string;
+    let activityId: string | undefined;
+
+    if (contextualElement === undefined) {
+      narrative = `${petName} is ready for a new adventure.`;
+    } else if (discoveryCount === 0) {
+      narrative = `${petName} notices the ${contextualElement.id} and feels curious about it.`;
+    } else {
+      // Guard against empty or undefined discoveries
+      const lastDiscovery = recentDiscoveries.length > 0 
+        ? recentDiscoveries[recentDiscoveries.length - 1] 
+        : contextualElement.id;
+      narrative = `${petName} remembers discovering the ${lastDiscovery} and wonders how the ${contextualElement.id} connects to it.`;
+    }
+
+    if (applicableCapabilityIds.includes('explore')) {
+      activityId = 'explore';
+    }
+
+    return createGameplayProposal(
+      controlledContext.generationPurpose,
+      controlledContext.sourceStateVersion,
+      controlledContext.gameplayContext.contextualElements,
+      applicableCapabilityIds,
+      narrative,
+      activityId,
     );
   }
 
