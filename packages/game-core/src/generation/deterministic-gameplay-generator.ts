@@ -13,6 +13,7 @@ export class DeterministicGameplayGenerator implements GameplayGenerator {
     const hasExploreCapability = context.gameplayContext.applicableCapabilityIds.includes('explore');
     const activityId = hasExploreCapability ? 'explore' : undefined;
     const discoveryCount = context.relevantState.discoveryCount;
+    const recentDiscoveries = context.relevantState.recentDiscoveries;
     const petName = context.relevantState.pet.name;
 
     let narrative: string;
@@ -22,7 +23,8 @@ export class DeterministicGameplayGenerator implements GameplayGenerator {
     } else if (discoveryCount === 0) {
       narrative = `${petName} notices the ${contextualElement.id} and feels curious about it.`;
     } else {
-      narrative = `${petName} remembers discovering the ${contextualElement.id} before and wonders what else it might reveal.`;
+      const lastDiscovery = recentDiscoveries[recentDiscoveries.length - 1];
+      narrative = `${petName} remembers discovering the ${lastDiscovery} and wonders how the ${contextualElement.id} connects to it.`;
     }
 
     return createGameplayProposal(

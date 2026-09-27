@@ -146,7 +146,7 @@ test('runs the complete gameplay generation and exploration flow with history-de
   // 14. The subsequent narrative explicitly reflects the prior discovery.
   assert.strictEqual(
     subsequentProposal.narrative,
-    'Sprout remembers discovering the blue-stone before and wonders what else it might reveal.',
+    'Sprout remembers discovering the blue-stone and wonders how the blue-stone connects to it.',
   );
 
   // 15. The authoritative state is still owned and mutated only by Game Core.
@@ -202,4 +202,151 @@ test('rejects a gameplay proposal containing an unsupported capability', () => {
   assert.equal(gameCore.getState().version, 0);
   assert.equal(gameCore.getState().pet.interactionCount, 0);
   assert.deepEqual(gameCore.getState().discoveries, []);
+});
+
+test('two players with different discoveries receive different gameplay proposals', async () => {
+  // Two independent GameCore instances with equivalent initial conditions.
+  const gameCoreA = new GameCore(
+    createInitialGameState(
+      { id: 'player-a' },
+      { id: 'pet-a', name: 'Sprout' },
+    ),
+  );
+  const gameCoreB = new GameCore(
+    createInitialGameState(
+      { id: 'player-b' },
+      { id: 'pet-b', name: 'Pebbles' },
+    ),
+  );
+
+  // Player A discovers blue-stone; Player B discovers old-oak.
+  const elementA: ContextualElement = {
+    id: 'blue-stone',
+    category: 'object',
+    attributes: ['visible', 'glowing'],
+  };
+  const elementB: ContextualElement = {
+    id: 'old-oak',
+    category: 'object',
+    attributes: ['visible', 'glowing'],
+  };
+
+  // --- Initial generation for both players (no discoveries yet) ---
+  const ctxA_initial = gameCoreA.createControlledGenerationContext(
+    'initial-adventure',
+    {
+      gameState: gameCoreA.getState(),
+      playerContext: { playerId: 'player-a', progressionLevel: 0 },
+      contextualElement: elementA,
+    },
+  );
+  const ctxB_initial = gameCoreB.createControlledGenerationContext(
+    'initial-adventure',
+    {
+      gameState: gameCoreB.getState(),
+      playerContext: { playerId: 'player-b', progressionLevel: 0 },
+      contextualElement: elementB,
+    },
+  );
+  assert.ok(ctxA_initial);
+  assert.ok(ctxB_initial);
+  assert.strictEqual(ctxA_initial.relevantState.discoveryCount, 0);
+  assert.strictEqual(ctxB_initial.relevantState.discoveryCount, 0);
+  assert.deepStrictEqual(ctxA_initial.relevantState.recentDiscoveries, []);
+  assert.deepStrictEqual(ctxB_initial.relevantState.recentDiscoveries, []);
+
+  const generator = new DeterministicGameplayGenerator();
+  const proposalA_initial = await generator.generate(ctxA_initial);
+  const proposalB_initial = await generator.generate(ctxB_initial);
+
+  const acceptedA_initial = gameCoreA.acceptGameplayProposal(ctxA_initial, proposalA_initial);
+  const acceptedB_initial = gameCoreB.acceptGameplayProposal(ctxB_initial, proposalB_initial);
+  assert.ok(acceptedA_initial);
+  assert.ok(acceptedB_initial);
+
+  // Both start with the same "no history" narrative shape.
+  assert.ok(proposalA_initial.narrative.includes('notices'));
+  assert.ok(proposalB_initial.narrative.includes('notices'));
+
+  // --- Player actions: discover different elements ---
+  const transitionA = gameCoreA.evaluate(
+    { playerId: 'player-a', type: 'explore', elementId: 'blue-stone' },
+    {
+      gameState: gameCoreA.getState(),
+      playerContext: { playerId: 'player-a', progressionLevel: 0 },
+      contextualElement: elementA,
+    },
+  );
+  const transitionB = gameCoreB.evaluate(
+    { playerId: 'player-b', type: 'explore', elementId: 'old-oak' },
+    {
+      gameState: gameCoreB.getState(),
+      playerContext: { playerId: 'player-b', progressionLevel: 0 },
+      contextualElement: elementB,
+    },
+  );
+  assert.ok(transitionA.accepted);
+  assert.ok(transitionB.accepted);
+
+  // --- Verify divergent authoritative state ---
+  assert.deepStrictEqual(gameCoreA.getState().discoveries, ['blue-stone']);
+  assert.deepStrictEqual(gameCoreB.getState().discoveries, ['old-oak']);
+  assert.strictEqual(gameCoreA.getState().version, 1);
+  assert.strictEqual(gameCoreB.getState().version, 1);
+  assert.strictEqual(gameCoreA.getState().pet.interactionCount, 1);
+  assert.strictEqual(gameCoreB.getState().pet.interactionCount, 1);
+
+  // --- Create NEW ControlledGenerationContexts from updated states ---
+  const ctxA_updated = gameCoreA.createControlledGenerationContext(
+    'subsequent-adventure',
+    {
+      gameState: gameCoreA.getState(),
+      playerContext: { playerId: 'player-a', progressionLevel: 0 },
+      contextualElement: elementA,
+    },
+  );
+  const ctxB_updated = gameCoreB.createControlledGenerationContext(
+    'subsequent-adventure',
+    {
+      gameState: gameCoreB.getState(),
+      playerContext: { playerId: 'player-b', progressionLevel: 0 },
+      contextualElement: elementB,
+    },
+  );
+  assert.ok(ctxA_updated);
+  assert.ok(ctxB_updated);
+
+  // --- Verify history isolation and correctness ---
+  assert.strictEqual(ctxA_updated.sourceStateVersion, 1);
+  assert.strictEqual(ctxB_updated.sourceStateVersion, 1);
+  assert.strictEqual(ctxA_updated.relevantState.discoveryCount, 1);
+  assert.strictEqual(ctxB_updated.relevantState.discoveryCount, 1);
+  assert.deepStrictEqual(ctxA_updated.relevantState.recentDiscoveries, ['blue-stone']);
+  assert.deepStrictEqual(ctxB_updated.relevantState.recentDiscoveries, ['old-oak']);
+  // Cross-isolation: A must not contain B's discovery and vice versa.
+  assert.ok(!ctxA_updated.relevantState.recentDiscoveries.includes('old-oak'));
+  assert.ok(!ctxB_updated.relevantState.recentDiscoveries.includes('blue-stone'));
+
+  // --- Generate subsequent proposals using the new contexts ---
+  const proposalA_subsequent = await generator.generate(ctxA_updated);
+  const proposalB_subsequent = await generator.generate(ctxB_updated);
+
+  // --- Accept proposals through Game Core ---
+  const acceptedA_subsequent = gameCoreA.acceptGameplayProposal(ctxA_updated, proposalA_subsequent);
+  const acceptedB_subsequent = gameCoreB.acceptGameplayProposal(ctxB_updated, proposalB_subsequent);
+  assert.ok(acceptedA_subsequent);
+  assert.ok(acceptedB_subsequent);
+
+  // --- Proposals must differ because their histories differ ---
+  assert.notEqual(proposalA_subsequent.narrative, proposalB_subsequent.narrative);
+
+  // --- Each narrative must reference its own discovery ---
+  assert.ok(proposalA_subsequent.narrative.includes('blue-stone'));
+  assert.ok(proposalB_subsequent.narrative.includes('old-oak'));
+
+  // --- Authoritative state must remain owned only by Game Core ---
+  assert.strictEqual(gameCoreA.getState().version, 1);
+  assert.strictEqual(gameCoreB.getState().version, 1);
+  assert.deepStrictEqual(gameCoreA.getState().discoveries, ['blue-stone']);
+  assert.deepStrictEqual(gameCoreB.getState().discoveries, ['old-oak']);
 });
