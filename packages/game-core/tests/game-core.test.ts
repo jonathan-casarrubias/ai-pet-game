@@ -3,8 +3,10 @@ import test from 'node:test';
 
 import {
   CapabilitySpace,
+  createDefaultCapabilitySpace,
   createInitialGameState,
   GameCore,
+  type ContextualElement,
   type CapabilityContext,
   type PlayerIntent,
 } from '../src/index.js';
@@ -23,6 +25,95 @@ function createCapabilityContext(progressionLevel: number): CapabilityContext {
     },
   };
 }
+
+function createObserveContext(
+  gameCore: GameCore,
+  contextualElement: ContextualElement,
+): CapabilityContext {
+  return {
+    gameState: gameCore.getState(),
+    playerContext: {
+      playerId: 'player-1',
+      progressionLevel: 0,
+    },
+    contextualElement,
+  };
+}
+
+test('exposes observe as a supported concrete capability', () => {
+  const capabilitySpace = createDefaultCapabilitySpace();
+
+  assert.strictEqual(capabilitySpace.find('observe')?.id, 'observe');
+});
+
+test('applies observe to a supported contextual element without a content catalog', () => {
+  const capabilitySpace = createDefaultCapabilitySpace();
+  const result = capabilitySpace.evaluateApplicability('observe', {
+    ...createCapabilityContext(0),
+    contextualElement: {
+      id: 'newly-generated-element',
+      category: 'phenomenon',
+      attributes: ['visible', 'glowing'],
+    },
+  });
+
+  assert.ok(result.applicable);
+});
+
+test('does not apply observe to a contextual element without observation support', () => {
+  const capabilitySpace = createDefaultCapabilitySpace();
+  const result = capabilitySpace.evaluateApplicability('observe', {
+    ...createCapabilityContext(0),
+    contextualElement: {
+      id: 'hidden-element',
+      category: 'object',
+      attributes: [],
+    },
+  });
+
+  assert.deepStrictEqual(result, {
+    applicable: false,
+    capabilityId: 'observe',
+    reason: 'inapplicable',
+  });
+});
+
+test('does not trust contextual capability declarations', () => {
+  const capabilitySpace = createDefaultCapabilitySpace();
+  const result = capabilitySpace.evaluateApplicability('observe', {
+    ...createCapabilityContext(0),
+    contextualElement: {
+      id: 'untrusted-element',
+      category: 'object',
+      attributes: [],
+      capabilities: ['observe'],
+    } as unknown as ContextualElement,
+  });
+
+  assert.deepStrictEqual(result, {
+    applicable: false,
+    capabilityId: 'observe',
+    reason: 'inapplicable',
+  });
+});
+
+test('does not apply observe to an unsupported contextual category', () => {
+  const capabilitySpace = createDefaultCapabilitySpace();
+  const result = capabilitySpace.evaluateApplicability('observe', {
+    ...createCapabilityContext(0),
+    contextualElement: {
+      id: 'unsupported-element',
+      category: 'unsupported-category',
+      attributes: ['visible'],
+    },
+  });
+
+  assert.deepStrictEqual(result, {
+    applicable: false,
+    capabilityId: 'observe',
+    reason: 'inapplicable',
+  });
+});
 
 test('represents a reusable capability in a capability space', () => {
   const capability = {
@@ -126,6 +217,327 @@ test('evaluating capability applicability does not mutate authoritative game sta
   assert.strictEqual(gameCore.getState(), stateBeforeEvaluation);
   assert.strictEqual(gameCore.getState().version, 0);
   assert.strictEqual(gameCore.getState().pet.interactionCount, 0);
+});
+
+test('creates a GameplayContext from the current authoritative state', () => {
+  const gameCore = new GameCore(initialState);
+  const contextualElement: ContextualElement = {
+    id: 'generated-phenomenon',
+    category: 'phenomenon',
+    attributes: ['visible', 'glowing'],
+  };
+
+  const gameplayContext = gameCore.createGameplayContext({
+    gameState: gameCore.getState(),
+    playerContext: {
+      playerId: 'player-1',
+      progressionLevel: 0,
+    },
+    contextualElement,
+  });
+
+  assert.deepStrictEqual(gameplayContext, {
+    playerId: 'player-1',
+    sourceStateVersion: 0,
+    contextualElements: [contextualElement],
+    applicableCapabilityIds: ['observe'],
+  });
+});
+
+test('derives GameplayContext capabilities instead of exposing caller declarations', () => {
+  const gameCore = new GameCore(initialState);
+  const contextualElement = {
+    id: 'caller-declared-element',
+    category: 'object',
+    attributes: ['visible'],
+    capabilities: ['not-a-game-core-capability'],
+  } as unknown as ContextualElement;
+
+  const gameplayContext = gameCore.createGameplayContext({
+    gameState: gameCore.getState(),
+    playerContext: {
+      playerId: 'player-1',
+      progressionLevel: 0,
+    },
+    contextualElement,
+  });
+
+  assert.deepStrictEqual(gameplayContext, {
+    playerId: 'player-1',
+    sourceStateVersion: 0,
+    contextualElements: [
+      {
+        id: 'caller-declared-element',
+        category: 'object',
+        attributes: ['visible'],
+      },
+    ],
+    applicableCapabilityIds: ['observe'],
+  });
+});
+
+test('does not include observe for a hidden contextual element', () => {
+  const gameCore = new GameCore(initialState);
+
+  const gameplayContext = gameCore.createGameplayContext({
+    gameState: gameCore.getState(),
+    playerContext: {
+      playerId: 'player-1',
+      progressionLevel: 0,
+    },
+    contextualElement: {
+      id: 'hidden-object',
+      category: 'object',
+      attributes: [],
+    },
+  });
+
+  assert.deepStrictEqual(gameplayContext?.applicableCapabilityIds, []);
+});
+
+test('rejects GameplayContext creation for another player', () => {
+  const gameCore = new GameCore(initialState);
+  const contextualElement: ContextualElement = {
+    id: 'visible-object',
+    category: 'object',
+    attributes: ['visible'],
+  };
+
+  const gameplayContext = gameCore.createGameplayContext({
+    gameState: gameCore.getState(),
+    playerContext: {
+      playerId: 'player-2',
+      progressionLevel: 0,
+    },
+    contextualElement,
+  });
+
+  assert.strictEqual(gameplayContext, undefined);
+});
+
+test('rejects GameplayContext creation from a stale CapabilityContext', () => {
+  const gameCore = new GameCore(initialState);
+  const contextualElement: ContextualElement = {
+    id: 'visible-object',
+    category: 'object',
+    attributes: ['visible'],
+  };
+  const capturedContext: CapabilityContext = {
+    gameState: gameCore.getState(),
+    playerContext: {
+      playerId: 'player-1',
+      progressionLevel: 0,
+    },
+    contextualElement,
+  };
+
+  const acceptedTransition = gameCore.evaluate({
+    playerId: 'player-1',
+    type: 'greet_pet',
+  });
+
+  assert.ok(acceptedTransition.accepted);
+  assert.strictEqual(gameCore.getState().version, 1);
+  assert.strictEqual(
+    gameCore.createGameplayContext(capturedContext),
+    undefined,
+  );
+});
+
+test('does not mutate authoritative state when creating a GameplayContext', () => {
+  const gameCore = new GameCore(initialState);
+  const stateBeforeContext = gameCore.getState();
+  const petBeforeContext = stateBeforeContext.pet;
+
+  const gameplayContext = gameCore.createGameplayContext({
+    gameState: stateBeforeContext,
+    playerContext: {
+      playerId: 'player-1',
+      progressionLevel: 0,
+    },
+    contextualElement: {
+      id: 'visible-object',
+      category: 'object',
+      attributes: ['visible'],
+    },
+  });
+
+  assert.ok(gameplayContext);
+  assert.strictEqual(gameCore.getState(), stateBeforeContext);
+  assert.strictEqual(gameCore.getState().pet, petBeforeContext);
+  assert.strictEqual(gameCore.getState().version, 0);
+});
+
+test('keeps contextual elements non-authoritative', () => {
+  const gameCore = new GameCore(initialState);
+  const contextualElement: ContextualElement = {
+    id: 'context-only-object',
+    category: 'object',
+    attributes: ['visible'],
+  };
+
+  const gameplayContext = gameCore.createGameplayContext({
+    gameState: gameCore.getState(),
+    playerContext: {
+      playerId: 'player-1',
+      progressionLevel: 0,
+    },
+    contextualElement,
+  });
+
+  assert.ok(gameplayContext);
+  assert.deepStrictEqual(gameCore.getState(), initialState);
+  assert.strictEqual(
+    Object.prototype.hasOwnProperty.call(gameCore.getState(), contextualElement.id),
+    false,
+  );
+});
+
+test('accepts a valid observe player action and emits an authoritative event', () => {
+  const gameCore = new GameCore(initialState);
+  const contextualElement: ContextualElement = {
+    id: 'glowing-seed-context',
+    category: 'plant',
+    attributes: ['visible', 'glowing'],
+  };
+
+  const transition = gameCore.evaluate(
+    {
+      playerId: 'player-1',
+      type: 'observe',
+      elementId: contextualElement.id,
+    },
+    createObserveContext(gameCore, contextualElement),
+  );
+
+  assert.ok(transition.accepted, 'valid observe action should be accepted');
+  assert.strictEqual(transition.previousState.version, 0);
+  assert.strictEqual(transition.state.version, 1);
+  assert.strictEqual(transition.state.pet.interactionCount, 0);
+  assert.deepStrictEqual(transition.events, [
+    {
+      type: 'contextual_element_observed',
+      capabilityId: 'observe',
+      playerId: 'player-1',
+      elementId: 'glowing-seed-context',
+    },
+  ]);
+  assert.strictEqual(gameCore.getState().version, 1);
+});
+
+test('rejects an invalid observe action without partially mutating state', () => {
+  const gameCore = new GameCore(initialState);
+  const contextualElement: ContextualElement = {
+    id: 'unobservable-object',
+    category: 'object',
+    attributes: [],
+  };
+  const stateBeforeAction = gameCore.getState();
+
+  const transition = gameCore.evaluate(
+    {
+      playerId: 'player-1',
+      type: 'observe',
+      elementId: contextualElement.id,
+    },
+    createObserveContext(gameCore, contextualElement),
+  );
+
+  assert.ok(!transition.accepted, 'inapplicable observe action should be rejected');
+  assert.strictEqual(transition.rejectionReason, 'inapplicable_action');
+  assert.deepStrictEqual(transition.events, []);
+  assert.strictEqual(transition.previousState, stateBeforeAction);
+  assert.strictEqual(transition.state, stateBeforeAction);
+  assert.strictEqual(gameCore.getState(), stateBeforeAction);
+});
+
+test('does not accept an observe action for a different contextual element', () => {
+  const gameCore = new GameCore(initialState);
+  const contextualElement: ContextualElement = {
+    id: 'visible-object',
+    category: 'object',
+    attributes: ['visible'],
+  };
+
+  const transition = gameCore.evaluate(
+    {
+      playerId: 'player-1',
+      type: 'observe',
+      elementId: 'different-object',
+    },
+    createObserveContext(gameCore, contextualElement),
+  );
+
+  assert.ok(!transition.accepted);
+  assert.strictEqual(transition.rejectionReason, 'inapplicable_action');
+  assert.deepStrictEqual(transition.events, []);
+  assert.strictEqual(gameCore.getState().version, 0);
+});
+
+test('rejects an observe action when the context belongs to another player', () => {
+  const gameCore = new GameCore(initialState);
+  const contextualElement: ContextualElement = {
+    id: 'visible-object',
+    category: 'object',
+    attributes: ['visible'],
+  };
+  const stateBeforeAction = gameCore.getState();
+
+  const transition = gameCore.evaluate(
+    {
+      playerId: 'player-1',
+      type: 'observe',
+      elementId: contextualElement.id,
+    },
+    {
+      gameState: gameCore.getState(),
+      playerContext: {
+        playerId: 'player-2',
+        progressionLevel: 0,
+      },
+      contextualElement,
+    },
+  );
+
+  assert.ok(!transition.accepted);
+  assert.strictEqual(transition.rejectionReason, 'inapplicable_action');
+  assert.deepStrictEqual(transition.events, []);
+  assert.strictEqual(gameCore.getState(), stateBeforeAction);
+  assert.strictEqual(gameCore.getState().version, 0);
+});
+
+test('rejects an observe action with a stale Game Core context', () => {
+  const gameCore = new GameCore(initialState);
+  const contextualElement: ContextualElement = {
+    id: 'visible-object',
+    category: 'object',
+    attributes: ['visible'],
+  };
+  const capturedContext = createObserveContext(gameCore, contextualElement);
+
+  const acceptedTransition = gameCore.evaluate({
+    playerId: 'player-1',
+    type: 'greet_pet',
+  });
+
+  assert.ok(acceptedTransition.accepted);
+  assert.strictEqual(gameCore.getState().version, 1);
+  const stateAfterAcceptedAction = gameCore.getState();
+
+  const transition = gameCore.evaluate(
+    {
+      playerId: 'player-1',
+      type: 'observe',
+      elementId: contextualElement.id,
+    },
+    capturedContext,
+  );
+
+  assert.ok(!transition.accepted);
+  assert.strictEqual(transition.rejectionReason, 'inapplicable_action');
+  assert.deepStrictEqual(transition.events, []);
+  assert.strictEqual(gameCore.getState(), stateAfterAcceptedAction);
+  assert.strictEqual(gameCore.getState().version, 1);
 });
 
 test('evaluates a valid player intent and produces an authoritative transition', () => {
