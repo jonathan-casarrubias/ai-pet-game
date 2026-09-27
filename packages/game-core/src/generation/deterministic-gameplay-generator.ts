@@ -12,17 +12,17 @@ export class DeterministicGameplayGenerator implements GameplayGenerator {
     const contextualElement = context.gameplayContext.contextualElements[0];
     const hasExploreCapability = context.gameplayContext.applicableCapabilityIds.includes('explore');
     const activityId = hasExploreCapability ? 'explore' : undefined;
+    const discoveryCount = context.relevantState.discoveryCount;
+    const petName = context.relevantState.pet.name;
 
     let narrative: string;
 
     if (contextualElement === undefined) {
-      narrative = `${context.relevantState.pet.name} is ready for a new adventure.`;
-    } else if (context.generationPurpose === 'initial_gameplay') {
-      narrative = `${context.relevantState.pet.name} notices the ${contextualElement.id} and feels curious about it.`;
-    } else if (context.generationPurpose === 'subsequent_gameplay') {
-      narrative = `${context.relevantState.pet.name} remembers the ${contextualElement.id} and wonders what else it might reveal.`;
+      narrative = `${petName} is ready for a new adventure.`;
+    } else if (discoveryCount === 0) {
+      narrative = `${petName} notices the ${contextualElement.id} and feels curious about it.`;
     } else {
-      narrative = `${context.relevantState.pet.name} notices the ${contextualElement.id}.`;
+      narrative = `${petName} remembers discovering the ${contextualElement.id} before and wonders what else it might reveal.`;
     }
 
     return createGameplayProposal(

@@ -119,6 +119,7 @@ export class GameCore {
           name: currentState.pet.name,
           interactionCount: currentState.pet.interactionCount,
         },
+        discoveryCount: currentState.discoveries.length,
       },
       {
         contextualElements: gameplayContext.contextualElements,

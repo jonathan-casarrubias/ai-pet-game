@@ -368,6 +368,7 @@ test('creates a controlled generation context from validated runtime context', (
         name: 'Sprout',
         interactionCount: 0,
       },
+      discoveryCount: 0,
     },
     gameplayContext: {
       contextualElements: [contextualElement],
@@ -414,7 +415,8 @@ test('does not expose internal pet identity in relevant generation state', () =>
     }),
   );
   assert.ok(controlledContext);
-  assert.deepStrictEqual(Object.keys(controlledContext.relevantState), [
+  assert.deepStrictEqual(Object.keys(controlledContext.relevantState).sort(), [
+    'discoveryCount',
     'pet',
   ]);
   assert.deepStrictEqual(

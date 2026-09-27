@@ -7,6 +7,7 @@ export type RelevantGenerationState = Readonly<{
     name: string;
     interactionCount: number;
   }>;
+  discoveryCount: number;
 }>;
 
 export type GenerationGameplayContext = Readonly<{
@@ -48,6 +49,7 @@ export function createControlledGenerationContext(
         name: relevantState.pet.name,
         interactionCount: relevantState.pet.interactionCount,
       }),
+      discoveryCount: relevantState.discoveryCount,
     }),
     gameplayContext: Object.freeze({
       contextualElements: Object.freeze(
