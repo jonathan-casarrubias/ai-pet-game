@@ -13,6 +13,7 @@ The world may contain:
 - Adventures and Quests.
 - Discoveries and learning opportunities.
 - Characters or other entities where appropriate.
+- Context-scoped entities or environmental elements generated within supported categories.
 - Progression-related availability.
 - A coherent setting for the Pet's identity and behavior.
 
@@ -29,6 +30,8 @@ In this product, a bounded world has:
 - Defined rules and valid outcomes.
 - Controlled content boundaries.
 - Explicitly supported progression paths.
+
+The boundaries apply to categories, properties, relationships, capabilities, and valid contexts, not necessarily to every concrete entity or environmental element that may appear. AI may generate a novel context-scoped element when Game Core can validate that it belongs within those boundaries.
 
 AI operates inside these boundaries. A generated response must not implicitly expand the world with an unsupported location, mechanic, capability, reward, rule, or progression path. Narrative may make the world feel varied, but it cannot redefine what the world is or what the player can do in it.
 
@@ -70,6 +73,8 @@ An Area or Place provides context for what the player may encounter and do. It m
 - Progression-related availability.
 
 An Area has explicit supported capabilities rather than arbitrary possibilities invented at runtime. Whether an Area exists, whether it is available, what it supports, and how it changes are authoritative game concepts. A generated description of an Area is presentation and does not establish any of those facts.
+
+An Area may contain a novel context-scoped entity or environmental element generated for a valid gameplay situation. That element does not establish a new authoritative Area fact merely by being described or included in an accepted context.
 
 The number, names, geography, and relationships between Areas remain open. The important boundary is that Areas belong to the bounded world model and are governed by Game Core rules.
 
@@ -135,17 +140,17 @@ The bounded world may contain content types such as:
 - Progression unlocks.
 - Pet interactions.
 
-These categories describe kinds of content, not a complete taxonomy or schema. Each content type should have an explicit purpose, supported capability, authority boundary, and safe behavior. A content type may be authored, varied deterministically, or enriched by AI, but its domain meaning must remain understandable without relying on model behavior.
+These categories describe kinds of content, not a complete taxonomy or schema. Each content type should have an explicit purpose, supported capability, authority boundary, and safe behavior. A content type may be authored, varied deterministically, or generated as a context-scoped element by AI, but its supported category, domain meaning, and safe behavior must remain understandable without relying on model behavior. A generated instance need not have been authored in advance, but it is not authoritative by default.
 
 ## Authored, deterministic, and AI-generated content
 
-World content may be understood through three conceptual sources:
+World content and contextual elements may be understood through three conceptual sources:
 
 - **Authored content:** Deliberately designed world facts, structures, activities, narrative foundations, and supported content.
 - **Deterministic or procedural variation:** Rule-based variation within known content capabilities.
-- **AI-generated variation:** Bounded narrative or creative variation produced from controlled context.
+- **AI-generated content:** Bounded narrative or creative variation, including novel context-scoped elements from supported categories, produced from controlled context.
 
-AI-generated content is variation over supported game concepts, not the mechanism that defines the existence of the world. A change in wording, model, provider, or availability must not make the world lose its identity or change its authoritative rules.
+AI-generated content does not by itself define authoritative world state. It may introduce a novel context-scoped element when the Game Core supports and validates its category, properties, relationships, capabilities, contextual relevance, constraints, and safety. A change in wording, model, provider, or availability must not make established world state lose its identity or change its authoritative rules.
 
 The game should remain coherent when AI output changes, is rejected, or is unavailable. Authored and deterministic paths should provide the stable foundation for gameplay, with AI adding expression and variety where the capability permits it.
 
@@ -158,12 +163,14 @@ AI may:
 - Vary narrative presentation.
 - Suggest supported Adventure or Quest variations.
 - Generate bounded narrative content.
+- Propose novel context-scoped entities or environmental elements within supported categories and current context boundaries.
 - Adapt expression to selected personality and structured memory context.
 
 AI may not:
 
 - Invent new world rules.
 - Establish an unsupported location as an authoritative game location.
+- Establish a generated contextual element as an authoritative or persistent entity by declaration.
 - Invent mechanics or capabilities.
 - Invent rewards or progression.
 - Declare Quest completion.
@@ -212,7 +219,7 @@ Game Core decides when content becomes available and what conditions are valid. 
 
 The world should feel as though it expands without becoming infinite. The player may begin with a limited set of supported possibilities. Meaningful progression and discoveries can reveal additional Areas, Experiences, Adventures, Quests, activities, or other content that was already part of the supported world model.
 
-This creates the perception of a world gradually revealing itself while preserving explicit boundaries. Expansion should come from designed relationships and accepted outcomes, not from an infinite procedural universe or unrestricted generation.
+This creates the perception of a world gradually revealing itself while preserving explicit boundaries. Persistent world expansion should come from designed relationships and accepted outcomes, while context-scoped elements may be generated as novel instances of supported categories without being predefined. Neither mechanism permits an infinite procedural universe or unrestricted generation.
 
 ## Content reuse and meaningful variation
 
@@ -236,11 +243,15 @@ The world should feel persistent even when generated content varies. Its consist
 
 - **Authoritative world state:** What Game Core has accepted about the world, available content, Pet, progression, discoveries, and outcomes.
 - **Supported content definitions:** The capabilities and boundaries that define what the world can contain and support.
+- **Authoritative existing entities:** Entities already established by Game Core, such as the player, Pet, inventory items, known locations, persistent relationships, or previously established objects.
+- **Generated contextual elements:** Novel context-scoped entities or environmental elements proposed for a current situation. They are non-authoritative unless an accepted Game Core transition establishes them.
 - **Narrative presentation:** The wording, dialogue, framing, and visual representation shown for a specific interaction.
 
 For example, a generated description of a Place is presentation. Whether the Place exists, what activities it supports, and whether the player can access it are authoritative game concepts.
 
 Previously established authoritative facts must remain consistent. AI cannot contradict accepted world state, make the same Place arbitrarily change identity, promise a reward that Game Core did not grant, or make Pet state disagree with structured memory. Narrative variation must remain compatible with current state and supported capabilities.
+
+A generated contextual element may be novel without contradicting established world state when it belongs to a supported category and is relevant to the current context. Its presence in a proposal or accepted context does not make it a persistent world fact. Game Core determines whether a later accepted interaction establishes it as an authoritative discovery, object, relationship, or other domain entity.
 
 ## Content lifecycle
 
@@ -256,6 +267,8 @@ Supported content may follow a conceptual lifecycle:
 8. **Potentially revisited:** The player may return when the content's rules allow it.
 
 Not every content type uses every lifecycle state. The lifecycle describes conceptual ownership, not a required status model.
+
+Generated contextual elements do not necessarily begin in the persistent content lifecycle. They may remain limited to a current context, or they may enter authoritative lifecycle states only after an accepted Game Core transition establishes them.
 
 ## Revisitability and continuity
 
@@ -337,7 +350,7 @@ The game must preserve safe bounded behavior when:
 - A generated proposal is rejected.
 - Persistence fails.
 
-The system must not invent replacement mechanics, unsupported locations, or new world content merely to keep the narrative flowing. A predefined or deterministic fallback is preferred. If no valid fallback exists, the game may leave state unchanged or return a safe unavailable result without claiming that the content was entered, completed, discovered, or unlocked.
+The system must not invent replacement mechanics, unsupported locations, or unsupported authoritative or persistent world content merely to keep the narrative flowing. A predefined or deterministic fallback is preferred. If no valid fallback exists, the game may leave state unchanged or return a safe unavailable result without claiming that the content was entered, completed, discovered, or unlocked. A novel context-scoped element may still be generated when it belongs to a supported category and is valid for the current context; it does not become authoritative merely because it keeps the narrative flowing.
 
 ## Long-term world philosophy
 
