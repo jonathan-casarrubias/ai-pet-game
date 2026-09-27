@@ -43,3 +43,5 @@ export type {
   AcceptedGameplayContext,
   GameplayProposal,
 } from './context/gameplay-proposal.js';
+export type { GameplayGenerator } from './generation/gameplay-generator.js';
+export { DeterministicGameplayGenerator } from './generation/deterministic-gameplay-generator.js';

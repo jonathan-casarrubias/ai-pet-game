@@ -22,6 +22,7 @@ export type GenerationBoundaries = Readonly<{
 
 export type ControlledGenerationContext = Readonly<{
   generationPurpose: GenerationPurpose;
+  sourceStateVersion: number;
   relevantState: RelevantGenerationState;
   gameplayContext: GenerationGameplayContext;
   boundaries: GenerationBoundaries;
@@ -35,11 +36,13 @@ const generationBoundaries: GenerationBoundaries = Object.freeze({
 
 export function createControlledGenerationContext(
   generationPurpose: GenerationPurpose,
+  sourceStateVersion: number,
   relevantState: RelevantGenerationState,
   gameplayContext: GenerationGameplayContext,
 ): ControlledGenerationContext {
   return Object.freeze({
     generationPurpose,
+    sourceStateVersion,
     relevantState: Object.freeze({
       pet: Object.freeze({
         name: relevantState.pet.name,

@@ -111,6 +111,7 @@ export class GameCore {
 
     return createControlledGenerationContext(
       generationPurpose,
+      currentState.version,
       {
         pet: {
           name: currentState.pet.name,
