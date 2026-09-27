@@ -51,6 +51,7 @@ Architecture documents describe system boundaries, runtime responsibilities, and
 | [`architecture/capability-model.md`](architecture/capability-model.md) | Defines capabilities as reusable, composable abilities with contextual applicability rather than complete authored experiences. |
 | [`architecture/generated-gameplay-context-and-state.md`](architecture/generated-gameplay-context-and-state.md) | Distinguishes authoritative Game Core state from generated, bounded gameplay context. |
 | [`architecture/ai-game-core-generative-contract.md`](architecture/ai-game-core-generative-contract.md) | Describes the controlled context, untrusted gameplay proposal, and Game Core validation boundary for generative gameplay. |
+| [`architecture/controlled-generation-context.md`](architecture/controlled-generation-context.md) | Defines the scoped, purpose-specific, non-authoritative information package Game Core constructs for AI generation, including its relationship to relevant state, capabilities, gameplay context, and safety boundaries. |
 | [`architecture/gameplay-proposal-model.md`](architecture/gameplay-proposal-model.md) | Defines the conceptual semantic categories and authority boundaries of a generated gameplay proposal. |
 
 ## Architecture Decision Records

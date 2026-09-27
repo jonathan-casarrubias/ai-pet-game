@@ -85,6 +85,13 @@ Contains:
 * infrastructure architecture
 * technical architecture documentation
 
+The current architecture guidance includes
+`knowledge/architecture/controlled-generation-context.md`. It defines the
+scoped, purpose-specific, non-authoritative information boundary that Game
+Core constructs for AI generation. Game Core determines what information
+crosses the boundary; AI receives bounded context and produces an untrusted
+proposal; Game Core validates the proposal and remains authoritative.
+
 ### `knowledge/decisions/`
 
 Contains:
