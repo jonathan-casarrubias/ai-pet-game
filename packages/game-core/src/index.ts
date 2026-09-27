@@ -66,3 +66,20 @@ export type {
   CorrectionAttempt,
   ProposalCorrector,
 } from './generation/proposal-corrector.js';
+export {
+  createGenerationRequest,
+  type GenerationRequest,
+} from './generation/generation-request.js';
+export type {
+  GenerationError,
+  GenerationResult,
+} from './generation/generation-result.js';
+export type { GenerationProvider } from './generation/generation-provider.js';
+export { ProviderGameplayGenerator } from './generation/provider-gameplay-generator.js';
+// Ollama adapter — infrastructure boundary, not part of Game Core domain.
+// Exported only so it can be instantiated for manual integration/testing.
+export {
+  OllamaGenerationProvider,
+  createOllamaConfig,
+  type OllamaConfig,
+} from './generation/ollama-generation-provider.js';
