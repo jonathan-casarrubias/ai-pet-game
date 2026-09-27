@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+
 import test from 'node:test';
 
 import {
@@ -48,6 +49,7 @@ test('exposes observe as a supported concrete capability', () => {
 
 test('applies observe to a supported contextual element without a content catalog', () => {
   const capabilitySpace = createDefaultCapabilitySpace();
+
   const result = capabilitySpace.evaluateApplicability('observe', {
     ...createCapabilityContext(0),
     contextualElement: {
@@ -62,6 +64,7 @@ test('applies observe to a supported contextual element without a content catalo
 
 test('does not apply observe to a contextual element without observation support', () => {
   const capabilitySpace = createDefaultCapabilitySpace();
+
   const result = capabilitySpace.evaluateApplicability('observe', {
     ...createCapabilityContext(0),
     contextualElement: {
@@ -80,6 +83,7 @@ test('does not apply observe to a contextual element without observation support
 
 test('does not trust contextual capability declarations', () => {
   const capabilitySpace = createDefaultCapabilitySpace();
+
   const result = capabilitySpace.evaluateApplicability('observe', {
     ...createCapabilityContext(0),
     contextualElement: {
@@ -99,6 +103,7 @@ test('does not trust contextual capability declarations', () => {
 
 test('does not apply observe to an unsupported contextual category', () => {
   const capabilitySpace = createDefaultCapabilitySpace();
+
   const result = capabilitySpace.evaluateApplicability('observe', {
     ...createCapabilityContext(0),
     contextualElement: {
@@ -120,10 +125,13 @@ test('represents a reusable capability in a capability space', () => {
     id: 'observe',
     isApplicable: () => true,
   };
+
   const capabilitySpace = new CapabilitySpace([capability]);
 
   assert.strictEqual(capabilitySpace.find('observe')?.id, 'observe');
-  assert.deepStrictEqual(capabilitySpace.getSupportedCapabilities(), [capability]);
+  assert.deepStrictEqual(capabilitySpace.getSupportedCapabilities(), [
+    capability,
+  ]);
 });
 
 test('evaluates a supported capability as applicable in context', () => {
@@ -147,7 +155,8 @@ test('allows applicability to differ by player-specific context', () => {
   const capabilitySpace = new CapabilitySpace([
     {
       id: 'advanced_observation',
-      isApplicable: ({ playerContext }) => playerContext.progressionLevel >= 2,
+      isApplicable: ({ playerContext }) =>
+        playerContext.progressionLevel >= 2,
     },
   ]);
 
@@ -155,6 +164,7 @@ test('allows applicability to differ by player-specific context', () => {
     'advanced_observation',
     createCapabilityContext(1),
   );
+
   const progressedResult = capabilitySpace.evaluateApplicability(
     'advanced_observation',
     createCapabilityContext(2),
@@ -165,6 +175,7 @@ test('allows applicability to differ by player-specific context', () => {
     capabilityId: 'advanced_observation',
     reason: 'inapplicable',
   });
+
   assert.ok(progressedResult.applicable);
 });
 
@@ -172,9 +183,11 @@ test('does not treat unavailable or inapplicable capabilities as applicable', ()
   const capabilitySpace = new CapabilitySpace([
     {
       id: 'progression_locked',
-      isApplicable: ({ playerContext }) => playerContext.progressionLevel >= 1,
+      isApplicable: ({ playerContext }) =>
+        playerContext.progressionLevel >= 1,
     },
   ]);
+
   const context = createCapabilityContext(0);
 
   assert.deepStrictEqual(
@@ -185,6 +198,7 @@ test('does not treat unavailable or inapplicable capabilities as applicable', ()
       reason: 'unavailable',
     },
   );
+
   assert.deepStrictEqual(
     capabilitySpace.evaluateApplicability('progression_locked', context),
     {
@@ -197,12 +211,15 @@ test('does not treat unavailable or inapplicable capabilities as applicable', ()
 
 test('evaluating capability applicability does not mutate authoritative game state', () => {
   const gameCore = new GameCore(initialState);
+
   const capabilitySpace = new CapabilitySpace([
     {
       id: 'observe',
-      isApplicable: ({ gameState }) => gameState.pet.interactionCount === 0,
+      isApplicable: ({ gameState }) =>
+        gameState.pet.interactionCount === 0,
     },
   ]);
+
   const stateBeforeEvaluation = gameCore.getState();
 
   const result = capabilitySpace.evaluateApplicability('observe', {
@@ -221,6 +238,7 @@ test('evaluating capability applicability does not mutate authoritative game sta
 
 test('creates a GameplayContext from the current authoritative state', () => {
   const gameCore = new GameCore(initialState);
+
   const contextualElement: ContextualElement = {
     id: 'generated-phenomenon',
     category: 'phenomenon',
@@ -246,6 +264,7 @@ test('creates a GameplayContext from the current authoritative state', () => {
 
 test('derives GameplayContext capabilities instead of exposing caller declarations', () => {
   const gameCore = new GameCore(initialState);
+
   const contextualElement = {
     id: 'caller-declared-element',
     category: 'object',
@@ -297,6 +316,7 @@ test('does not include observe for a hidden contextual element', () => {
 
 test('rejects GameplayContext creation for another player', () => {
   const gameCore = new GameCore(initialState);
+
   const contextualElement: ContextualElement = {
     id: 'visible-object',
     category: 'object',
@@ -317,11 +337,13 @@ test('rejects GameplayContext creation for another player', () => {
 
 test('rejects GameplayContext creation from a stale CapabilityContext', () => {
   const gameCore = new GameCore(initialState);
+
   const contextualElement: ContextualElement = {
     id: 'visible-object',
     category: 'object',
     attributes: ['visible'],
   };
+
   const capturedContext: CapabilityContext = {
     gameState: gameCore.getState(),
     playerContext: {
@@ -338,6 +360,7 @@ test('rejects GameplayContext creation from a stale CapabilityContext', () => {
 
   assert.ok(acceptedTransition.accepted);
   assert.strictEqual(gameCore.getState().version, 1);
+
   assert.strictEqual(
     gameCore.createGameplayContext(capturedContext),
     undefined,
@@ -346,6 +369,7 @@ test('rejects GameplayContext creation from a stale CapabilityContext', () => {
 
 test('does not mutate authoritative state when creating a GameplayContext', () => {
   const gameCore = new GameCore(initialState);
+
   const stateBeforeContext = gameCore.getState();
   const petBeforeContext = stateBeforeContext.pet;
 
@@ -370,6 +394,7 @@ test('does not mutate authoritative state when creating a GameplayContext', () =
 
 test('creates a controlled generation context from validated runtime context', () => {
   const gameCore = new GameCore(initialState);
+
   const contextualElement: ContextualElement = {
     id: 'generation-object',
     category: 'object',
@@ -383,6 +408,12 @@ test('creates a controlled generation context from validated runtime context', (
 
   assert.deepStrictEqual(controlledContext, {
     generationPurpose: 'initial_gameplay',
+    relevantState: {
+      pet: {
+        name: 'Sprout',
+        interactionCount: 0,
+      },
+    },
     gameplayContext: {
       playerId: 'player-1',
       sourceStateVersion: 0,
@@ -399,6 +430,7 @@ test('creates a controlled generation context from validated runtime context', (
 
 test('does not expose complete GameState or an AI proposal in controlled context', () => {
   const gameCore = new GameCore(initialState);
+
   const controlledContext = gameCore.createControlledGenerationContext(
     'subsequent_gameplay',
     createObserveContext(gameCore, {
@@ -409,17 +441,90 @@ test('does not expose complete GameState or an AI proposal in controlled context
   );
 
   assert.ok(controlledContext);
+
   assert.deepStrictEqual(Object.keys(controlledContext).sort(), [
     'boundaries',
     'gameplayContext',
     'generationPurpose',
+    'relevantState',
   ]);
+
   assert.ok(!('gameState' in controlledContext));
   assert.ok(!('proposal' in controlledContext));
 });
 
+test('does not expose internal pet identity in relevant generation state', () => {
+  const gameCore = new GameCore(initialState);
+
+  const controlledContext = gameCore.createControlledGenerationContext(
+    'initial_gameplay',
+    createObserveContext(gameCore, {
+      id: 'generation-object',
+      category: 'object',
+      attributes: ['visible'],
+    }),
+  );
+
+  assert.ok(controlledContext);
+
+  assert.deepStrictEqual(Object.keys(controlledContext.relevantState), [
+    'pet',
+  ]);
+
+  assert.deepStrictEqual(
+    Object.keys(controlledContext.relevantState.pet).sort(),
+    ['interactionCount', 'name'],
+  );
+
+  assert.ok(!('id' in controlledContext.relevantState.pet));
+});
+
+test('reflects current authoritative interaction state in relevant generation state', () => {
+  const gameCore = new GameCore(initialState);
+
+  const initialContext = gameCore.createControlledGenerationContext(
+    'initial_gameplay',
+    createObserveContext(gameCore, {
+      id: 'generation-object',
+      category: 'object',
+      attributes: ['visible'],
+    }),
+  );
+
+  assert.ok(initialContext);
+  assert.strictEqual(
+    initialContext.relevantState.pet.interactionCount,
+    0,
+  );
+
+  const acceptedTransition = gameCore.evaluate({
+    playerId: 'player-1',
+    type: 'greet_pet',
+  });
+
+  assert.ok(acceptedTransition.accepted);
+  assert.strictEqual(gameCore.getState().pet.interactionCount, 1);
+
+  const updatedContext = gameCore.createControlledGenerationContext(
+    'subsequent_gameplay',
+    createObserveContext(gameCore, {
+      id: 'generation-object-after-interaction',
+      category: 'object',
+      attributes: ['visible'],
+    }),
+  );
+
+  assert.ok(updatedContext);
+  assert.strictEqual(
+    updatedContext.relevantState.pet.interactionCount,
+    1,
+  );
+  assert.strictEqual(updatedContext.relevantState.pet.name, 'Sprout');
+});
+
 test('rejects controlled generation context for invalid source context', () => {
   const gameCore = new GameCore(initialState);
+
   const contextualElement: ContextualElement = {
     id: 'generation-object',
     category: 'object',
@@ -443,6 +548,7 @@ test('rejects controlled generation context for invalid source context', () => {
 
 test('rejects controlled generation context from stale authoritative state', () => {
   const gameCore = new GameCore(initialState);
+
   const capturedContext = createObserveContext(gameCore, {
     id: 'generation-object',
     category: 'object',
@@ -455,6 +561,7 @@ test('rejects controlled generation context from stale authoritative state', () 
   });
 
   assert.ok(acceptedTransition.accepted);
+
   assert.strictEqual(
     gameCore.createControlledGenerationContext(
       'subsequent_gameplay',
@@ -462,12 +569,15 @@ test('rejects controlled generation context from stale authoritative state', () 
     ),
     undefined,
   );
+
   assert.strictEqual(gameCore.getState().version, 1);
 });
 
 test('keeps controlled generation context immutable and does not mutate state', () => {
   const gameCore = new GameCore(initialState);
+
   const stateBeforeCreation = gameCore.getState();
+
   const controlledContext = gameCore.createControlledGenerationContext(
     'initial_gameplay',
     createObserveContext(gameCore, {
@@ -479,10 +589,17 @@ test('keeps controlled generation context immutable and does not mutate state', 
 
   assert.ok(controlledContext);
   assert.ok(Object.isFrozen(controlledContext));
+  assert.ok(Object.isFrozen(controlledContext.relevantState));
+  assert.ok(Object.isFrozen(controlledContext.relevantState.pet));
   assert.ok(Object.isFrozen(controlledContext.gameplayContext));
   assert.ok(Object.isFrozen(controlledContext.boundaries));
+
   assert.strictEqual(gameCore.getState(), stateBeforeCreation);
   assert.strictEqual(gameCore.getState().version, 0);
+  assert.strictEqual(
+    gameCore.getState().pet.interactionCount,
+    0,
+  );
 });
 
 test('rejects controlled generation context with an empty generation purpose', () => {
@@ -517,9 +634,9 @@ test('rejects controlled generation context with a whitespace-only generation pu
   );
 });
 
-
 test('keeps contextual elements non-authoritative', () => {
   const gameCore = new GameCore(initialState);
+
   const contextualElement: ContextualElement = {
     id: 'context-only-object',
     category: 'object',
@@ -537,14 +654,19 @@ test('keeps contextual elements non-authoritative', () => {
 
   assert.ok(gameplayContext);
   assert.deepStrictEqual(gameCore.getState(), initialState);
+
   assert.strictEqual(
-    Object.prototype.hasOwnProperty.call(gameCore.getState(), contextualElement.id),
+    Object.prototype.hasOwnProperty.call(
+      gameCore.getState(),
+      contextualElement.id,
+    ),
     false,
   );
 });
 
 test('accepts a valid observe player action and emits an authoritative event', () => {
   const gameCore = new GameCore(initialState);
+
   const contextualElement: ContextualElement = {
     id: 'glowing-seed-context',
     category: 'plant',
@@ -564,6 +686,7 @@ test('accepts a valid observe player action and emits an authoritative event', (
   assert.strictEqual(transition.previousState.version, 0);
   assert.strictEqual(transition.state.version, 1);
   assert.strictEqual(transition.state.pet.interactionCount, 0);
+
   assert.deepStrictEqual(transition.events, [
     {
       type: 'contextual_element_observed',
@@ -572,16 +695,19 @@ test('accepts a valid observe player action and emits an authoritative event', (
       elementId: 'glowing-seed-context',
     },
   ]);
+
   assert.strictEqual(gameCore.getState().version, 1);
 });
 
 test('rejects an invalid observe action without partially mutating state', () => {
   const gameCore = new GameCore(initialState);
+
   const contextualElement: ContextualElement = {
     id: 'unobservable-object',
     category: 'object',
     attributes: [],
   };
+
   const stateBeforeAction = gameCore.getState();
 
   const transition = gameCore.evaluate(
@@ -593,8 +719,16 @@ test('rejects an invalid observe action without partially mutating state', () =>
     createObserveContext(gameCore, contextualElement),
   );
 
-  assert.ok(!transition.accepted, 'inapplicable observe action should be rejected');
-  assert.strictEqual(transition.rejectionReason, 'inapplicable_action');
+  assert.ok(
+    !transition.accepted,
+    'inapplicable observe action should be rejected',
+  );
+
+  assert.strictEqual(
+    transition.rejectionReason,
+    'inapplicable_action',
+  );
+
   assert.deepStrictEqual(transition.events, []);
   assert.strictEqual(transition.previousState, stateBeforeAction);
   assert.strictEqual(transition.state, stateBeforeAction);
@@ -603,6 +737,7 @@ test('rejects an invalid observe action without partially mutating state', () =>
 
 test('does not accept an observe action for a different contextual element', () => {
   const gameCore = new GameCore(initialState);
+
   const contextualElement: ContextualElement = {
     id: 'visible-object',
     category: 'object',
@@ -619,18 +754,23 @@ test('does not accept an observe action for a different contextual element', () 
   );
 
   assert.ok(!transition.accepted);
-  assert.strictEqual(transition.rejectionReason, 'inapplicable_action');
+  assert.strictEqual(
+    transition.rejectionReason,
+    'inapplicable_action',
+  );
   assert.deepStrictEqual(transition.events, []);
   assert.strictEqual(gameCore.getState().version, 0);
 });
 
 test('rejects an observe action when the context belongs to another player', () => {
   const gameCore = new GameCore(initialState);
+
   const contextualElement: ContextualElement = {
     id: 'visible-object',
     category: 'object',
     attributes: ['visible'],
   };
+
   const stateBeforeAction = gameCore.getState();
 
   const transition = gameCore.evaluate(
@@ -650,7 +790,10 @@ test('rejects an observe action when the context belongs to another player', () 
   );
 
   assert.ok(!transition.accepted);
-  assert.strictEqual(transition.rejectionReason, 'inapplicable_action');
+  assert.strictEqual(
+    transition.rejectionReason,
+    'inapplicable_action',
+  );
   assert.deepStrictEqual(transition.events, []);
   assert.strictEqual(gameCore.getState(), stateBeforeAction);
   assert.strictEqual(gameCore.getState().version, 0);
@@ -658,12 +801,17 @@ test('rejects an observe action when the context belongs to another player', () 
 
 test('rejects an observe action with a stale Game Core context', () => {
   const gameCore = new GameCore(initialState);
+
   const contextualElement: ContextualElement = {
     id: 'visible-object',
     category: 'object',
     attributes: ['visible'],
   };
-  const capturedContext = createObserveContext(gameCore, contextualElement);
+
+  const capturedContext = createObserveContext(
+    gameCore,
+    contextualElement,
+  );
 
   const acceptedTransition = gameCore.evaluate({
     playerId: 'player-1',
@@ -672,6 +820,7 @@ test('rejects an observe action with a stale Game Core context', () => {
 
   assert.ok(acceptedTransition.accepted);
   assert.strictEqual(gameCore.getState().version, 1);
+
   const stateAfterAcceptedAction = gameCore.getState();
 
   const transition = gameCore.evaluate(
@@ -684,7 +833,10 @@ test('rejects an observe action with a stale Game Core context', () => {
   );
 
   assert.ok(!transition.accepted);
-  assert.strictEqual(transition.rejectionReason, 'inapplicable_action');
+  assert.strictEqual(
+    transition.rejectionReason,
+    'inapplicable_action',
+  );
   assert.deepStrictEqual(transition.events, []);
   assert.strictEqual(gameCore.getState(), stateAfterAcceptedAction);
   assert.strictEqual(gameCore.getState().version, 1);
@@ -703,7 +855,10 @@ test('evaluates a valid player intent and produces an authoritative transition',
   assert.strictEqual(transition.state.version, 1);
   assert.strictEqual(transition.state.pet.interactionCount, 1);
   assert.strictEqual(gameCore.getState().version, 1);
-  assert.strictEqual(gameCore.getState().pet.interactionCount, 1);
+  assert.strictEqual(
+    gameCore.getState().pet.interactionCount,
+    1,
+  );
 });
 
 test('produces a domain event for an accepted pet interaction', () => {
@@ -715,6 +870,7 @@ test('produces a domain event for an accepted pet interaction', () => {
   });
 
   assert.strictEqual(transition.events.length, 1);
+
   assert.deepStrictEqual(transition.events[0], {
     type: 'pet_greeted',
     playerId: 'player-1',
@@ -735,11 +891,17 @@ test('accepts a valid pet question and produces a bounded domain event', () => {
   assert.ok(transition.accepted, 'valid question should be accepted');
   assert.strictEqual(transition.state.version, 1);
   assert.strictEqual(transition.state.pet.interactionCount, 1);
+
   assert.deepStrictEqual(transition.state, {
     player: { id: 'player-1' },
-    pet: { id: 'pet-1', name: 'Sprout', interactionCount: 1 },
+    pet: {
+      id: 'pet-1',
+      name: 'Sprout',
+      interactionCount: 1,
+    },
     version: 1,
   });
+
   assert.deepStrictEqual(transition.events, [
     {
       type: 'pet_question_asked',
@@ -759,12 +921,21 @@ test('rejects a pet question with a missing question without mutating state', ()
   });
 
   assert.ok(!transition.accepted);
-  assert.strictEqual(transition.rejectionReason, 'invalid_intent');
+  assert.strictEqual(
+    transition.rejectionReason,
+    'invalid_intent',
+  );
   assert.strictEqual(transition.events.length, 0);
   assert.strictEqual(transition.state.version, 0);
-  assert.strictEqual(transition.state.pet.interactionCount, 0);
+  assert.strictEqual(
+    transition.state.pet.interactionCount,
+    0,
+  );
   assert.strictEqual(gameCore.getState().version, 0);
-  assert.strictEqual(gameCore.getState().pet.interactionCount, 0);
+  assert.strictEqual(
+    gameCore.getState().pet.interactionCount,
+    0,
+  );
 });
 
 test('rejects a pet question with a non-string question without mutating state', () => {
@@ -777,12 +948,21 @@ test('rejects a pet question with a non-string question without mutating state',
   } as unknown as PlayerIntent);
 
   assert.ok(!transition.accepted);
-  assert.strictEqual(transition.rejectionReason, 'invalid_intent');
+  assert.strictEqual(
+    transition.rejectionReason,
+    'invalid_intent',
+  );
   assert.strictEqual(transition.events.length, 0);
   assert.strictEqual(transition.state.version, 0);
-  assert.strictEqual(transition.state.pet.interactionCount, 0);
+  assert.strictEqual(
+    transition.state.pet.interactionCount,
+    0,
+  );
   assert.strictEqual(gameCore.getState().version, 0);
-  assert.strictEqual(gameCore.getState().pet.interactionCount, 0);
+  assert.strictEqual(
+    gameCore.getState().pet.interactionCount,
+    0,
+  );
 });
 
 test('rejects an empty pet question without mutating state', () => {
@@ -795,12 +975,21 @@ test('rejects an empty pet question without mutating state', () => {
   });
 
   assert.ok(!transition.accepted);
-  assert.strictEqual(transition.rejectionReason, 'invalid_intent');
+  assert.strictEqual(
+    transition.rejectionReason,
+    'invalid_intent',
+  );
   assert.strictEqual(transition.events.length, 0);
   assert.strictEqual(transition.state.version, 0);
-  assert.strictEqual(transition.state.pet.interactionCount, 0);
+  assert.strictEqual(
+    transition.state.pet.interactionCount,
+    0,
+  );
   assert.strictEqual(gameCore.getState().version, 0);
-  assert.strictEqual(gameCore.getState().pet.interactionCount, 0);
+  assert.strictEqual(
+    gameCore.getState().pet.interactionCount,
+    0,
+  );
 });
 
 test('rejects a whitespace-only pet question without mutating state', () => {
@@ -813,23 +1002,37 @@ test('rejects a whitespace-only pet question without mutating state', () => {
   });
 
   assert.ok(!transition.accepted);
-  assert.strictEqual(transition.rejectionReason, 'invalid_intent');
+  assert.strictEqual(
+    transition.rejectionReason,
+    'invalid_intent',
+  );
   assert.strictEqual(transition.events.length, 0);
   assert.strictEqual(transition.state.version, 0);
-  assert.strictEqual(transition.state.pet.interactionCount, 0);
+  assert.strictEqual(
+    transition.state.pet.interactionCount,
+    0,
+  );
   assert.strictEqual(gameCore.getState().version, 0);
-  assert.strictEqual(gameCore.getState().pet.interactionCount, 0);
+  assert.strictEqual(
+    gameCore.getState().pet.interactionCount,
+    0,
+  );
 });
 
 test('does not allow callers to mutate authoritative state directly', () => {
   const gameCore = new GameCore(initialState);
+
   const state = gameCore.getState();
 
   try {
     (state.pet as { interactionCount: number }).interactionCount = 99;
   } catch {}
 
-  assert.strictEqual(gameCore.getState().pet.interactionCount, 0);
+  assert.strictEqual(
+    gameCore.getState().pet.interactionCount,
+    0,
+  );
+
   assert.ok(
     !('applyTransition' in gameCore),
     'GameCore should expose evaluation, not a caller-controlled transition method',
@@ -838,6 +1041,7 @@ test('does not allow callers to mutate authoritative state directly', () => {
 
 test('rejects an unsupported intent without partially mutating state', () => {
   const gameCore = new GameCore(initialState);
+
   const unsupportedIntent = {
     playerId: 'player-1',
     type: 'open_inventory',
@@ -845,13 +1049,25 @@ test('rejects an unsupported intent without partially mutating state', () => {
 
   const transition = gameCore.evaluate(unsupportedIntent);
 
-  assert.ok(!transition.accepted, 'unsupported intent should be rejected');
-  assert.strictEqual(transition.rejectionReason, 'unsupported_intent');
+  assert.ok(
+    !transition.accepted,
+    'unsupported intent should be rejected',
+  );
+  assert.strictEqual(
+    transition.rejectionReason,
+    'unsupported_intent',
+  );
   assert.strictEqual(transition.events.length, 0);
   assert.strictEqual(transition.state.version, 0);
-  assert.strictEqual(transition.state.pet.interactionCount, 0);
+  assert.strictEqual(
+    transition.state.pet.interactionCount,
+    0,
+  );
   assert.strictEqual(gameCore.getState().version, 0);
-  assert.strictEqual(gameCore.getState().pet.interactionCount, 0);
+  assert.strictEqual(
+    gameCore.getState().pet.interactionCount,
+    0,
+  );
 });
 
 test('rejects an intent for another player without changing state', () => {
@@ -862,8 +1078,17 @@ test('rejects an intent for another player without changing state', () => {
     type: 'greet_pet',
   });
 
-  assert.ok(!transition.accepted, 'intent for another player should be rejected');
-  assert.strictEqual(transition.rejectionReason, 'player_mismatch');
+  assert.ok(
+    !transition.accepted,
+    'intent for another player should be rejected',
+  );
+  assert.strictEqual(
+    transition.rejectionReason,
+    'player_mismatch',
+  );
   assert.strictEqual(gameCore.getState().version, 0);
-  assert.strictEqual(gameCore.getState().pet.interactionCount, 0);
+  assert.strictEqual(
+    gameCore.getState().pet.interactionCount,
+    0,
+  );
 });

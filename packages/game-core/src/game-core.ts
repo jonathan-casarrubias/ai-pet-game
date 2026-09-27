@@ -101,8 +101,16 @@ export class GameCore {
       return undefined;
     }
 
+    const relevantState = {
+      pet: {
+        name: this.#state.pet.name,
+        interactionCount: this.#state.pet.interactionCount,
+      },
+    };
+
     return createControlledGenerationContext(
       generationPurpose,
+      relevantState,
       gameplayContext,
     );
   }
