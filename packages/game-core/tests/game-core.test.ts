@@ -45,6 +45,104 @@ test('produces a domain event for an accepted pet interaction', () => {
   });
 });
 
+test('accepts a valid pet question and produces a bounded domain event', () => {
+  const gameCore = new GameCore(initialState);
+
+  const transition = gameCore.evaluate({
+    playerId: 'player-1',
+    type: 'ask_pet_question',
+    question: 'Why is the sky blue?',
+  });
+
+  assert.ok(transition.accepted, 'valid question should be accepted');
+  assert.strictEqual(transition.state.version, 1);
+  assert.strictEqual(transition.state.pet.interactionCount, 1);
+  assert.deepStrictEqual(transition.state, {
+    player: { id: 'player-1' },
+    pet: { id: 'pet-1', name: 'Sprout', interactionCount: 1 },
+    version: 1,
+  });
+  assert.deepStrictEqual(transition.events, [
+    {
+      type: 'pet_question_asked',
+      playerId: 'player-1',
+      petId: 'pet-1',
+      interactionCount: 1,
+    },
+  ]);
+});
+
+test('rejects a pet question with a missing question without mutating state', () => {
+  const gameCore = new GameCore(initialState);
+
+  const transition = gameCore.evaluate({
+    playerId: 'player-1',
+    type: 'ask_pet_question',
+  });
+
+  assert.ok(!transition.accepted);
+  assert.strictEqual(transition.rejectionReason, 'invalid_intent');
+  assert.strictEqual(transition.events.length, 0);
+  assert.strictEqual(transition.state.version, 0);
+  assert.strictEqual(transition.state.pet.interactionCount, 0);
+  assert.strictEqual(gameCore.getState().version, 0);
+  assert.strictEqual(gameCore.getState().pet.interactionCount, 0);
+});
+
+test('rejects a pet question with a non-string question without mutating state', () => {
+  const gameCore = new GameCore(initialState);
+
+  const transition = gameCore.evaluate({
+    playerId: 'player-1',
+    type: 'ask_pet_question',
+    question: 42,
+  } as unknown as PlayerIntent);
+
+  assert.ok(!transition.accepted);
+  assert.strictEqual(transition.rejectionReason, 'invalid_intent');
+  assert.strictEqual(transition.events.length, 0);
+  assert.strictEqual(transition.state.version, 0);
+  assert.strictEqual(transition.state.pet.interactionCount, 0);
+  assert.strictEqual(gameCore.getState().version, 0);
+  assert.strictEqual(gameCore.getState().pet.interactionCount, 0);
+});
+
+test('rejects an empty pet question without mutating state', () => {
+  const gameCore = new GameCore(initialState);
+
+  const transition = gameCore.evaluate({
+    playerId: 'player-1',
+    type: 'ask_pet_question',
+    question: '',
+  });
+
+  assert.ok(!transition.accepted);
+  assert.strictEqual(transition.rejectionReason, 'invalid_intent');
+  assert.strictEqual(transition.events.length, 0);
+  assert.strictEqual(transition.state.version, 0);
+  assert.strictEqual(transition.state.pet.interactionCount, 0);
+  assert.strictEqual(gameCore.getState().version, 0);
+  assert.strictEqual(gameCore.getState().pet.interactionCount, 0);
+});
+
+test('rejects a whitespace-only pet question without mutating state', () => {
+  const gameCore = new GameCore(initialState);
+
+  const transition = gameCore.evaluate({
+    playerId: 'player-1',
+    type: 'ask_pet_question',
+    question: '   \t\n',
+  });
+
+  assert.ok(!transition.accepted);
+  assert.strictEqual(transition.rejectionReason, 'invalid_intent');
+  assert.strictEqual(transition.events.length, 0);
+  assert.strictEqual(transition.state.version, 0);
+  assert.strictEqual(transition.state.pet.interactionCount, 0);
+  assert.strictEqual(gameCore.getState().version, 0);
+  assert.strictEqual(gameCore.getState().pet.interactionCount, 0);
+});
+
 test('does not allow callers to mutate authoritative state directly', () => {
   const gameCore = new GameCore(initialState);
   const state = gameCore.getState();

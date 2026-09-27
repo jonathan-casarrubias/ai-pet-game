@@ -17,14 +17,22 @@ export type GameState = Readonly<{
 export type PlayerIntent = Readonly<{
   playerId: string;
   type: string;
+  question?: string;
 }>;
 
-export type DomainEvent = Readonly<{
-  type: 'pet_greeted';
-  playerId: string;
-  petId: string;
-  interactionCount: number;
-}>;
+export type DomainEvent =
+  | Readonly<{
+      type: 'pet_greeted';
+      playerId: string;
+      petId: string;
+      interactionCount: number;
+    }>
+  | Readonly<{
+      type: 'pet_question_asked';
+      playerId: string;
+      petId: string;
+      interactionCount: number;
+    }>;
 
 export type StateTransition = Readonly<{
   accepted: boolean;
@@ -34,7 +42,7 @@ export type StateTransition = Readonly<{
   rejectionReason?: 'invalid_intent' | 'unsupported_intent' | 'player_mismatch';
 }>;
 
-const supportedIntentType = 'greet_pet';
+const supportedIntentTypes = ['greet_pet', 'ask_pet_question'];
 
 export function createInitialGameState(
   player: Player,
@@ -73,7 +81,7 @@ export class GameCore {
       return createRejectedTransition(previousState, 'player_mismatch');
     }
 
-    if (intent.type !== supportedIntentType) {
+    if (!supportedIntentTypes.includes(intent.type)) {
       return createRejectedTransition(previousState, 'unsupported_intent');
     }
 
@@ -85,12 +93,21 @@ export class GameCore {
       },
       version: previousState.version + 1,
     });
-    const event = freezeDomainEvent({
-      type: 'pet_greeted',
-      playerId: previousState.player.id,
-      petId: previousState.pet.id,
-      interactionCount: nextState.pet.interactionCount,
-    });
+    const event = freezeDomainEvent(
+      intent.type === 'ask_pet_question'
+        ? {
+            type: 'pet_question_asked',
+            playerId: previousState.player.id,
+            petId: previousState.pet.id,
+            interactionCount: nextState.pet.interactionCount,
+          }
+        : {
+            type: 'pet_greeted',
+            playerId: previousState.player.id,
+            petId: previousState.pet.id,
+            interactionCount: nextState.pet.interactionCount,
+          },
+    );
     const transition = freezeTransition({
       accepted: true,
       previousState,
@@ -104,11 +121,18 @@ export class GameCore {
 }
 
 function isValidIntent(intent: PlayerIntent): boolean {
+  if (
+    typeof intent !== 'object' ||
+    intent === null ||
+    typeof intent.playerId !== 'string' ||
+    typeof intent.type !== 'string'
+  ) {
+    return false;
+  }
+
   return (
-    typeof intent === 'object' &&
-    intent !== null &&
-    typeof intent.playerId === 'string' &&
-    typeof intent.type === 'string'
+    intent.type !== 'ask_pet_question' ||
+    (typeof intent.question === 'string' && intent.question.trim().length > 0)
   );
 }
 
