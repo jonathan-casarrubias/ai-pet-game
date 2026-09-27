@@ -2,8 +2,10 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  CapabilitySpace,
   createInitialGameState,
   GameCore,
+  type CapabilityContext,
   type PlayerIntent,
 } from '../src/index.js';
 
@@ -11,6 +13,120 @@ const initialState = createInitialGameState(
   { id: 'player-1' },
   { id: 'pet-1', name: 'Sprout' },
 );
+
+function createCapabilityContext(progressionLevel: number): CapabilityContext {
+  return {
+    gameState: initialState,
+    playerContext: {
+      playerId: 'player-1',
+      progressionLevel,
+    },
+  };
+}
+
+test('represents a reusable capability in a capability space', () => {
+  const capability = {
+    id: 'observe',
+    isApplicable: () => true,
+  };
+  const capabilitySpace = new CapabilitySpace([capability]);
+
+  assert.strictEqual(capabilitySpace.find('observe')?.id, 'observe');
+  assert.deepStrictEqual(capabilitySpace.getSupportedCapabilities(), [capability]);
+});
+
+test('evaluates a supported capability as applicable in context', () => {
+  const capabilitySpace = new CapabilitySpace([
+    {
+      id: 'observe',
+      isApplicable: () => true,
+    },
+  ]);
+
+  const result = capabilitySpace.evaluateApplicability(
+    'observe',
+    createCapabilityContext(0),
+  );
+
+  assert.ok(result.applicable);
+  assert.strictEqual(result.capability.id, 'observe');
+});
+
+test('allows applicability to differ by player-specific context', () => {
+  const capabilitySpace = new CapabilitySpace([
+    {
+      id: 'advanced_observation',
+      isApplicable: ({ playerContext }) => playerContext.progressionLevel >= 2,
+    },
+  ]);
+
+  const earlyResult = capabilitySpace.evaluateApplicability(
+    'advanced_observation',
+    createCapabilityContext(1),
+  );
+  const progressedResult = capabilitySpace.evaluateApplicability(
+    'advanced_observation',
+    createCapabilityContext(2),
+  );
+
+  assert.deepStrictEqual(earlyResult, {
+    applicable: false,
+    capabilityId: 'advanced_observation',
+    reason: 'inapplicable',
+  });
+  assert.ok(progressedResult.applicable);
+});
+
+test('does not treat unavailable or inapplicable capabilities as applicable', () => {
+  const capabilitySpace = new CapabilitySpace([
+    {
+      id: 'progression_locked',
+      isApplicable: ({ playerContext }) => playerContext.progressionLevel >= 1,
+    },
+  ]);
+  const context = createCapabilityContext(0);
+
+  assert.deepStrictEqual(
+    capabilitySpace.evaluateApplicability('missing', context),
+    {
+      applicable: false,
+      capabilityId: 'missing',
+      reason: 'unavailable',
+    },
+  );
+  assert.deepStrictEqual(
+    capabilitySpace.evaluateApplicability('progression_locked', context),
+    {
+      applicable: false,
+      capabilityId: 'progression_locked',
+      reason: 'inapplicable',
+    },
+  );
+});
+
+test('evaluating capability applicability does not mutate authoritative game state', () => {
+  const gameCore = new GameCore(initialState);
+  const capabilitySpace = new CapabilitySpace([
+    {
+      id: 'observe',
+      isApplicable: ({ gameState }) => gameState.pet.interactionCount === 0,
+    },
+  ]);
+  const stateBeforeEvaluation = gameCore.getState();
+
+  const result = capabilitySpace.evaluateApplicability('observe', {
+    gameState: gameCore.getState(),
+    playerContext: {
+      playerId: 'player-1',
+      progressionLevel: 0,
+    },
+  });
+
+  assert.ok(result.applicable);
+  assert.strictEqual(gameCore.getState(), stateBeforeEvaluation);
+  assert.strictEqual(gameCore.getState().version, 0);
+  assert.strictEqual(gameCore.getState().pet.interactionCount, 0);
+});
 
 test('evaluates a valid player intent and produces an authoritative transition', () => {
   const gameCore = new GameCore(initialState);

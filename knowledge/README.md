@@ -47,6 +47,11 @@ Architecture documents describe system boundaries, runtime responsibilities, and
 | [`architecture/game-core-domain-boundaries.md`](architecture/game-core-domain-boundaries.md) | Defines Game Core responsibilities, non-responsibilities, authoritative state, validation, and framework/infrastructure independence. |
 | [`architecture/domain-events-and-state-flow.md`](architecture/domain-events-and-state-flow.md) | Defines the flow from player intent through Game Core state transitions, domain events, persistence, retries, and client-safe results. |
 | [`architecture/application-layer-and-use-cases.md`](architecture/application-layer-and-use-cases.md) | Defines the application/use-case layer between transport/API concerns and Game Core, including coordination, AI orchestration, persistence, failures, retries, and safety boundaries. |
+| [`architecture/generative-capability-space.md`](architecture/generative-capability-space.md) | Defines the bounded generative space of reusable capabilities, rules, constraints, invariants, state, and safety boundaries. |
+| [`architecture/capability-model.md`](architecture/capability-model.md) | Defines capabilities as reusable, composable abilities with contextual applicability rather than complete authored experiences. |
+| [`architecture/generated-gameplay-context-and-state.md`](architecture/generated-gameplay-context-and-state.md) | Distinguishes authoritative Game Core state from generated, bounded gameplay context. |
+| [`architecture/ai-game-core-generative-contract.md`](architecture/ai-game-core-generative-contract.md) | Describes the controlled context, untrusted gameplay proposal, and Game Core validation boundary for generative gameplay. |
+| [`architecture/gameplay-proposal-model.md`](architecture/gameplay-proposal-model.md) | Defines the conceptual semantic categories and authority boundaries of a generated gameplay proposal. |
 
 ## Architecture Decision Records
 
@@ -60,6 +65,7 @@ ADRs are the authoritative source for explicit architectural decisions. Consult 
 | [`decisions/ADR-004-postgresql-neon-for-persistence.md`](decisions/ADR-004-postgresql-neon-for-persistence.md) | PostgreSQL hosted on Neon is the persistence database; it does not define game rules. |
 | [`decisions/ADR-005-cloudflare-workers-backend-runtime.md`](decisions/ADR-005-cloudflare-workers-backend-runtime.md) | Cloudflare Workers with Express is the selected backend runtime for the MVP and future production foundation. |
 | [`decisions/ADR-006-ai-game-core-contract.md`](decisions/ADR-006-ai-game-core-contract.md) | AI and Game Core communicate through a controlled, structured, validated proposal contract. |
+| [`decisions/ADR-007-ai-driven-player-experience.md`](decisions/ADR-007-ai-driven-player-experience.md) | AI generates novel gameplay within a bounded capability space rather than selecting from a finite experience catalog. |
 
 ## AI
 

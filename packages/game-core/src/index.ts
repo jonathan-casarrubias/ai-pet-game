@@ -14,6 +14,85 @@ export type GameState = Readonly<{
   version: number;
 }>;
 
+export type CapabilityContext = Readonly<{
+  gameState: GameState;
+  playerContext: Readonly<{
+    playerId: string;
+    progressionLevel: number;
+  }>;
+}>;
+
+export type CapabilityDefinition = Readonly<{
+  id: string;
+  isApplicable: (context: CapabilityContext) => boolean;
+}>;
+
+export type CapabilityApplicability =
+  | Readonly<{
+      applicable: true;
+      capability: CapabilityDefinition;
+    }>
+  | Readonly<{
+      applicable: false;
+      capabilityId: string;
+      reason: 'unavailable' | 'inapplicable';
+    }>;
+
+export class CapabilitySpace {
+  #capabilities: readonly CapabilityDefinition[];
+
+  public constructor(capabilities: readonly CapabilityDefinition[]) {
+    const capabilityIds = new Set<string>();
+
+    this.#capabilities = Object.freeze(
+      capabilities.map((capability) => {
+        if (capabilityIds.has(capability.id)) {
+          throw new Error(`Duplicate capability id: ${capability.id}`);
+        }
+
+        capabilityIds.add(capability.id);
+        return Object.freeze({ ...capability });
+      }),
+    );
+  }
+
+  public getSupportedCapabilities(): readonly CapabilityDefinition[] {
+    return this.#capabilities;
+  }
+
+  public find(capabilityId: string): CapabilityDefinition | undefined {
+    return this.#capabilities.find((capability) => capability.id === capabilityId);
+  }
+
+  public evaluateApplicability(
+    capabilityId: string,
+    context: CapabilityContext,
+  ): CapabilityApplicability {
+    const capability = this.find(capabilityId);
+
+    if (capability === undefined) {
+      return {
+        applicable: false,
+        capabilityId,
+        reason: 'unavailable',
+      };
+    }
+
+    if (!capability.isApplicable(context)) {
+      return {
+        applicable: false,
+        capabilityId,
+        reason: 'inapplicable',
+      };
+    }
+
+    return {
+      applicable: true,
+      capability,
+    };
+  }
+}
+
 export type PlayerIntent = Readonly<{
   playerId: string;
   type: string;

@@ -41,17 +41,13 @@ The repository currently uses this structure:
 ```text
 ai-pet-game/
 ├── AGENTS.md
-├── apps/
-│   ├── api/
-│   └── mobile/
 ├── knowledge/
 │   ├── ai/
 │   ├── architecture/
 │   ├── decisions/
 │   └── game-design/
 ├── packages/
-│   ├── game-core/
-│   └── shared/
+│   └── game-core/
 └── skills/
     ├── ai-narrative/
     ├── api/
@@ -137,6 +133,7 @@ Current approved architectural decisions are:
 * ADR-004: PostgreSQL with Neon is the persistence database.
 * ADR-005: Cloudflare Workers is the backend runtime.
 * ADR-006: AI and Game Core communicate through a controlled proposal contract.
+* ADR-007: AI-driven player experience uses bounded generation rather than bounded selection.
 
 Before making significant changes to architecture or Game Core, inspect the relevant ADRs in `knowledge/decisions/`, relevant documentation in `knowledge/`, and relevant skills in `skills/`.
 
@@ -544,6 +541,7 @@ Current approved architectural decisions are:
 * ADR-004: PostgreSQL with Neon is the persistence database.
 * ADR-005: Cloudflare Workers is the backend runtime.
 * ADR-006: AI and Game Core communicate through a controlled proposal contract.
+* ADR-007: AI-driven player experience uses bounded generation rather than bounded selection.
 
 ---
 
