@@ -547,6 +547,24 @@ Current approved architectural decisions are:
 
 ---
 
+# TypeScript and tooling conventions
+
+Apply these conventions to TypeScript packages and applications unless a deliberate, documented architectural or runtime requirement justifies an exception:
+
+* Use TypeScript as the canonical compiler for reusable or compilable TypeScript packages. Declare TypeScript locally in each package rather than relying on a globally installed `tsc`.
+* Until a root workspace is deliberately introduced, a TypeScript package may own its TypeScript development dependency and lockfile. Do not add a root workspace or root `package.json` as part of this convention.
+* Node-oriented TypeScript packages use ESM with `"type": "module"` in `package.json` and `"module": "NodeNext"` in `tsconfig.json`. Do not configure legacy `moduleResolution: "Node"` or `node10` resolution; under NodeNext, source-relative imports must follow Node ESM requirements, including `.js` extensions where required.
+* Do not use `ignoreDeprecations` merely to suppress compiler warnings. Migrate configuration to the current supported model and avoid redundant compiler options without a concrete reason.
+* Reusable packages use the TypeScript compiler to produce JavaScript, declarations, and source maps. Node 24 native type stripping is limited to suitable small scripts or experiments and is not the reusable-package build model.
+* Node-oriented TypeScript packages use Node's native `node:test` runner and `node:assert/strict` for assertions. Use them directly; do not create local copies of generic test or assertion helpers.
+* TypeScript tests are compiled to JavaScript and the generated JavaScript is executed with Node. The standard package test command is `npm test`; for `packages/game-core`, it must remain `npm run build && node --test dist/tests/game-core.test.js`.
+* Do not introduce Jest, Vitest, Mocha, `ts-node`, `tsx`, or similar testing/runtime tooling without a concrete future requirement and an explicit decision. Do not add `--test-isolation=none` or other workaround/special flags.
+* Future platform-specific environments such as React Native may use an appropriate test framework when actually required, as a deliberate and documented exception.
+* Keep tests focused on behavior and architectural boundaries, following `skills/testing/implement-feature.md`. Specialized test frameworks for other platforms require a deliberate, documented exception.
+* Record exceptions deliberately so they are not introduced accidentally or copied as the default pattern.
+
+---
+
 # Non-goals for the MVP
 
 Do not introduce the following unless a concrete requirement appears:
