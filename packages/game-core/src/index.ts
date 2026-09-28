@@ -40,10 +40,13 @@ export {
 
 export type { DomainEvent } from './domain/domain-events.js';
 export {
+  applyConsequenceBatch,
   applyGameplayConsequence,
   validateGameplayConsequence,
+  type BatchConsequenceApplicationResult,
   type ChangeEntityStateConsequence,
   type SpawnEntityConsequence,
+  type RecordDiscoveryConsequence,
   type GameplayConsequence,
   type ConsequenceApplicationResult,
   type ConsequenceValidationResult,

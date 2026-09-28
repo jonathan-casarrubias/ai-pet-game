@@ -12,9 +12,15 @@ export type SpawnEntityConsequence = Readonly<{
   entity: SpatialEntity;
 }>;
 
+export type RecordDiscoveryConsequence = Readonly<{
+  type: 'record_discovery';
+  entityId: string;
+}>;
+
 export type GameplayConsequence =
   | ChangeEntityStateConsequence
-  | SpawnEntityConsequence;
+  | SpawnEntityConsequence
+  | RecordDiscoveryConsequence;
 
 export type ConsequenceApplicationResult = Readonly<
   | {
@@ -43,6 +49,10 @@ export function validateGameplayConsequence(
 
   if (consequence.type === 'spawn_entity') {
     return validateSpawnEntity(consequence, state);
+  }
+
+  if (consequence.type === 'record_discovery') {
+    return validateRecordDiscovery(consequence, state);
   }
 
   return { valid: false, reason: 'Unknown consequence type' };
@@ -161,6 +171,27 @@ function validateSpawnEntity(
   return { valid: true };
 }
 
+function validateRecordDiscovery(
+  consequence: RecordDiscoveryConsequence,
+  state: GameState,
+): ConsequenceValidationResult {
+  const { entityId } = consequence;
+
+  if (typeof entityId !== 'string' || entityId.trim().length === 0) {
+    return { valid: false, reason: 'Invalid entity ID' };
+  }
+
+  if (state.world.entities[entityId] === undefined) {
+    return { valid: false, reason: 'Entity not found' };
+  }
+
+  if (state.discoveries.includes(entityId)) {
+    return { valid: false, reason: 'Discovery already recorded' };
+  }
+
+  return { valid: true };
+}
+
 export function applyGameplayConsequence(
   consequence: GameplayConsequence,
   state: GameState,
@@ -173,18 +204,48 @@ export function applyGameplayConsequence(
       reason: validation.reason ?? 'Invalid consequence',
     });
   }
-  
+
+  if (consequence.type === 'record_discovery') {
+    const nextState = freezeGameState({
+      ...state,
+      version: state.version + 1,
+      discoveries: [...state.discoveries, consequence.entityId],
+      world: state.world,
+    });
+
+    return Object.freeze({ accepted: true, state: nextState });
+  }
 
   if (consequence.type === 'change_entity_state') {
-  const currentEntity = state.world.entities[consequence.entityId]!;
-  const updatedEntity: SpatialEntity = {
-    ...currentEntity,
-    state: consequence.state,
-  };
+    const currentEntity = state.world.entities[consequence.entityId]!;
+    const updatedEntity: SpatialEntity = {
+      ...currentEntity,
+      state: consequence.state,
+    };
 
-  const updatedEntities: Record<string, SpatialEntity> = {
-    ...state.world.entities,
-    [consequence.entityId]: updatedEntity,
+    const updatedEntities: Record<string, SpatialEntity> = {
+      ...state.world.entities,
+      [consequence.entityId]: updatedEntity,
+    };
+
+    const nextState = freezeGameState({
+      ...state,
+      version: state.version + 1,
+      world: {
+        ...state.world,
+        entities: updatedEntities,
+      },
+    });
+
+    return Object.freeze({ accepted: true, state: nextState });
+  }
+
+  // SpawnEntityConsequence
+  const spawnedEntity: SpatialEntity = {
+    ...consequence.entity,
+    position: {
+      ...consequence.entity.position,
+    },
   };
 
   const nextState = freezeGameState({
@@ -192,34 +253,110 @@ export function applyGameplayConsequence(
     version: state.version + 1,
     world: {
       ...state.world,
-      entities: updatedEntities,
+      entities: {
+        ...state.world.entities,
+        [spawnedEntity.id]: spawnedEntity,
+      },
     },
   });
 
   return Object.freeze({ accepted: true, state: nextState });
 }
 
-// Aquí ya estamos en SpawnEntityConsequence
 
-const spawnedEntity: SpatialEntity = {
-  ...consequence.entity,
-  position: {
-    ...consequence.entity.position,
-  },
-};
+export type BatchConsequenceApplicationResult = Readonly<
+  | {
+      accepted: true;
+      state: GameState;
+    }
+  | {
+      accepted: false;
+      state: GameState;
+      reason: string;
+    }
+>;
 
-const nextState = freezeGameState({
-  ...state,
-  version: state.version + 1,
-  world: {
-    ...state.world,
-    entities: {
-      ...state.world.entities,
-      [spawnedEntity.id]: spawnedEntity,
+export function applyConsequenceBatch(
+  consequences: readonly GameplayConsequence[],
+  state: GameState,
+): BatchConsequenceApplicationResult {
+  if (consequences.length === 0) {
+    return Object.freeze({ accepted: true, state });
+  }
+
+  // 1. Atomicity: Validate ALL consequences individually against the same pre-application state
+  for (let i = 0; i < consequences.length; i++) {
+    const c = consequences[i]!;
+    const validation = validateGameplayConsequence(c, state);
+    if (!validation.valid) {
+      return Object.freeze({
+        accepted: false,
+        state,
+        reason: validation.reason ?? 'Invalid consequence in batch',
+      });
+    }
+  }
+
+  // 2. Conflict validation: Reject duplicate entity IDs within the same batch
+  const spawnedIds = new Set<string>();
+  const discoveredIds = new Set<string>();
+
+  for (let i = 0; i < consequences.length; i++) {
+    const c = consequences[i]!;
+    if (c.type === 'spawn_entity') {
+      if (spawnedIds.has(c.entity.id)) {
+        return Object.freeze({
+          accepted: false,
+          state,
+          reason: 'Duplicate spawn_entity ID in batch',
+        });
+      }
+      spawnedIds.add(c.entity.id);
+    } else if (c.type === 'record_discovery') {
+      if (discoveredIds.has(c.entityId)) {
+        return Object.freeze({
+          accepted: false,
+          state,
+          reason: 'Duplicate record_discovery entity ID in batch',
+        });
+      }
+      discoveredIds.add(c.entityId);
+    }
+  }
+
+  // 3. Accumulate changes onto working state structures without intermediate version bumps
+  let workingEntities: Record<string, SpatialEntity> = { ...state.world.entities };
+  let workingDiscoveries: string[] = [...state.discoveries];
+
+  for (let i = 0; i < consequences.length; i++) {
+    const c = consequences[i]!;
+    if (c.type === 'record_discovery') {
+      workingDiscoveries.push(c.entityId);
+    } else if (c.type === 'change_entity_state') {
+      const current = workingEntities[c.entityId]!;
+      workingEntities[c.entityId] = {
+        ...current,
+        state: c.state,
+      };
+    } else if (c.type === 'spawn_entity') {
+      const spawned: SpatialEntity = {
+        ...c.entity,
+        position: { ...c.entity.position },
+      };
+      workingEntities[spawned.id] = spawned;
+    }
+  }
+
+  // Atomically create next state with exactly ONE version bump for the entire batch
+  const nextState = freezeGameState({
+    ...state,
+    version: state.version + 1,
+    discoveries: workingDiscoveries,
+    world: {
+      ...state.world,
+      entities: workingEntities,
     },
-  },
-});
+  });
 
-return Object.freeze({ accepted: true, state: nextState });
+  return Object.freeze({ accepted: true, state: nextState });
 }
-

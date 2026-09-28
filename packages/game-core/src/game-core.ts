@@ -32,8 +32,10 @@ import {
 } from './generation/proposal-corrector.js';
 import { freezeDomainEvent } from './domain/domain-events.js';
 import {
+  applyConsequenceBatch,
   applyGameplayConsequence,
   validateGameplayConsequence,
+  type BatchConsequenceApplicationResult,
   type ConsequenceApplicationResult,
   type ConsequenceValidationResult,
   type GameplayConsequence,
@@ -86,6 +88,38 @@ export class GameCore {
     consequence: GameplayConsequence,
   ): ConsequenceApplicationResult {
     const result = applyGameplayConsequence(consequence, this.#state);
+    if (result.accepted) {
+      this.#state = result.state;
+    }
+    return result;
+  }
+
+  public applyAcceptedGameplayContext(
+    acceptedContext: AcceptedGameplayContext,
+  ): BatchConsequenceApplicationResult {
+    const currentState = this.#state;
+
+    // Check for stale source state version
+    if (acceptedContext.gameplayContext.sourceStateVersion !== currentState.version) {
+      return Object.freeze({
+        accepted: false,
+        state: currentState,
+        reason: 'Stale source state version',
+      });
+    }
+
+    const consequences = acceptedContext.consequences ?? [];
+
+    // If zero consequences, no-op: return accepted with current state without version bump
+    if (consequences.length === 0) {
+      return Object.freeze({
+        accepted: true,
+        state: currentState,
+      });
+    }
+
+    // Apply the consequences atomically in batch
+    const result = applyConsequenceBatch(consequences, currentState);
     if (result.accepted) {
       this.#state = result.state;
     }
