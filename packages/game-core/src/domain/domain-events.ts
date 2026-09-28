@@ -36,6 +36,12 @@ export type DomainEvent =
       playerId: string;
       petId: string;
       entityId: string;
+    }>
+  | Readonly<{
+      type: 'blue_stone_discovered';
+      playerId: string;
+      petId: string;
+      entityId: 'blue-stone';
     }>;
 
 export function freezeDomainEvent(event: DomainEvent): DomainEvent {
