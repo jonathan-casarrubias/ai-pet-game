@@ -40,6 +40,15 @@ export {
 
 export type { DomainEvent } from './domain/domain-events.js';
 export {
+  applyGameplayConsequence,
+  validateGameplayConsequence,
+  type ChangeEntityStateConsequence,
+  type SpawnEntityConsequence,
+  type GameplayConsequence,
+  type ConsequenceApplicationResult,
+  type ConsequenceValidationResult,
+} from './domain/gameplay-consequence.js';
+export {
   createInitialGameState,
   freezeGameState,
   type GameState,

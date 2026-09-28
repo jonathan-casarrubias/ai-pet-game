@@ -6,6 +6,7 @@ import {
   createInitialGameState,
   freezeGameState,
   GameCore,
+  type ChangeEntityStateConsequence,
   type GameState,
   type SpatialEntity,
 } from '../src/index.js';
@@ -65,93 +66,77 @@ test('successful blue-stone interaction produces an accepted transition', () => 
   assert.ok(transition.accepted);
 });
 
-test('blue stone becomes discovered', () => {
+test('blue stone state can be changed to discovered via generic consequence mechanism', () => {
   const gameCore = new GameCore(makeBlueStoneState());
-  const transition = gameCore.evaluate({
+  const interaction = gameCore.evaluate({
     playerId: 'player-1',
     type: 'interact',
     entityId: 'blue-stone',
   });
-  assert.ok(transition.accepted);
-  const stone = transition.state.world.entities['blue-stone'];
+  assert.ok(interaction.accepted);
+
+  const consequence: ChangeEntityStateConsequence = {
+    type: 'change_entity_state',
+    entityId: 'blue-stone',
+    state: 'discovered',
+  };
+
+  const consequenceResult = gameCore.applyConsequence(consequence);
+  assert.ok(consequenceResult.accepted);
+  const stone = consequenceResult.state.world.entities['blue-stone'];
   assert.ok(stone !== undefined);
   assert.strictEqual(stone.state, 'discovered');
+  const storedStone = gameCore.getState().world.entities['blue-stone'];
+  assert.ok(storedStone !== undefined);
+  assert.strictEqual(storedStone.state, 'discovered');
 });
 
-test('blue-stone is added to discoveries', () => {
+test('applying consequence increments version exactly once', () => {
   const gameCore = new GameCore(makeBlueStoneState());
-  const transition = gameCore.evaluate({
-    playerId: 'player-1',
-    type: 'interact',
+  const consequence: ChangeEntityStateConsequence = {
+    type: 'change_entity_state',
     entityId: 'blue-stone',
-  });
-  assert.ok(transition.accepted);
-  assert.deepStrictEqual([...transition.state.discoveries], ['blue-stone']);
-  assert.deepStrictEqual([...gameCore.getState().discoveries], ['blue-stone']);
+    state: 'discovered',
+  };
+  const result = gameCore.applyConsequence(consequence);
+  assert.ok(result.accepted);
+  assert.strictEqual(gameCore.getState().version, 1);
 });
 
-test('version increments exactly once', () => {
+test('blue stone remains present in world.entities after state change', () => {
   const gameCore = new GameCore(makeBlueStoneState());
-  const transition = gameCore.evaluate({
-    playerId: 'player-1',
-    type: 'interact',
+  const consequence: ChangeEntityStateConsequence = {
+    type: 'change_entity_state',
     entityId: 'blue-stone',
-  });
-  assert.ok(transition.accepted);
-  assert.strictEqual(transition.previousState.version, 0);
-  assert.strictEqual(transition.state.version, 1);
-});
-
-test('blue_stone_discovered event is emitted with correct ids', () => {
-  const gameCore = new GameCore(makeBlueStoneState());
-  const transition = gameCore.evaluate({
-    playerId: 'player-1',
-    type: 'interact',
-    entityId: 'blue-stone',
-  });
-  assert.ok(transition.accepted);
-  assert.deepStrictEqual(transition.events, [
-    {
-      type: 'blue_stone_discovered',
-      playerId: 'player-1',
-      petId: 'pet-1',
-      entityId: 'blue-stone',
-    },
-  ]);
-});
-
-test('blue stone remains present in world.entities', () => {
-  const gameCore = new GameCore(makeBlueStoneState());
-  const transition = gameCore.evaluate({
-    playerId: 'player-1',
-    type: 'interact',
-    entityId: 'blue-stone',
-  });
-  assert.ok(transition.accepted);
-  const stone = transition.state.world.entities['blue-stone'];
+    state: 'discovered',
+  };
+  const result = gameCore.applyConsequence(consequence);
+  assert.ok(result.accepted);
+  const stone = result.state.world.entities['blue-stone'];
   assert.ok(stone !== undefined);
   assert.strictEqual(stone.interactionRadius, 20);
   assert.strictEqual(stone.position.x, 210);
   assert.strictEqual(stone.position.y, 200);
 });
 
-test('unrelated state is preserved after blue-stone interaction', () => {
+test('unrelated state is preserved after blue-stone consequence application', () => {
   const gameCore = new GameCore(makeBlueStoneState());
-  const transition = gameCore.evaluate({
-    playerId: 'player-1',
-    type: 'interact',
+  const consequence: ChangeEntityStateConsequence = {
+    type: 'change_entity_state',
     entityId: 'blue-stone',
-  });
-  assert.ok(transition.accepted);
-  assert.deepStrictEqual(transition.state.player, { id: 'player-1' });
-  assert.deepStrictEqual(transition.state.pet, {
+    state: 'discovered',
+  };
+  const result = gameCore.applyConsequence(consequence);
+  assert.ok(result.accepted);
+  assert.deepStrictEqual(result.state.player, { id: 'player-1' });
+  assert.deepStrictEqual(result.state.pet, {
     id: 'pet-1',
     name: 'Lumi',
     interactionCount: 0,
   });
-  assert.strictEqual(transition.state.world.playerPos.x, 200);
-  assert.strictEqual(transition.state.world.playerPos.y, 200);
-  assert.deepStrictEqual(transition.state.world.bounds, {
+  assert.strictEqual(result.state.world.playerPos.x, 200);
+  assert.strictEqual(result.state.world.playerPos.y, 200);
+  assert.deepStrictEqual(result.state.world.bounds, {
     minX: 0,
     minY: 0,
     maxX: 400,
@@ -159,70 +144,33 @@ test('unrelated state is preserved after blue-stone interaction', () => {
   });
 });
 
-test('re-interacting with a discovered blue stone is rejected', () => {
+test('re-changing state of an already discovered blue stone is rejected', () => {
   const gameCore = new GameCore(makeBlueStoneState());
-  const first = gameCore.evaluate({
-    playerId: 'player-1',
-    type: 'interact',
+  const consequence: ChangeEntityStateConsequence = {
+    type: 'change_entity_state',
     entityId: 'blue-stone',
-  });
+    state: 'discovered',
+  };
+  const first = gameCore.applyConsequence(consequence);
   assert.ok(first.accepted);
-  const second = gameCore.evaluate({
-    playerId: 'player-1',
-    type: 'interact',
-    entityId: 'blue-stone',
-  });
+
+  const second = gameCore.applyConsequence(consequence);
   assert.ok(!second.accepted);
-  assert.strictEqual(second.rejectionReason, 'inapplicable_action');
 });
 
-test('rejected repeated interaction does not increment version', () => {
+test('rejected repeated consequence application does not increment version', () => {
   const gameCore = new GameCore(makeBlueStoneState());
-  gameCore.evaluate({
-    playerId: 'player-1',
-    type: 'interact',
+  const consequence: ChangeEntityStateConsequence = {
+    type: 'change_entity_state',
     entityId: 'blue-stone',
-  });
-  const second = gameCore.evaluate({
-    playerId: 'player-1',
-    type: 'interact',
-    entityId: 'blue-stone',
-  });
+    state: 'discovered',
+  };
+  gameCore.applyConsequence(consequence);
+  const versionBefore = gameCore.getState().version;
+  const second = gameCore.applyConsequence(consequence);
   assert.ok(!second.accepted);
-  assert.strictEqual(second.state.version, 1);
-  assert.strictEqual(gameCore.getState().version, 1);
-});
-
-test('rejected repeated interaction does not duplicate the discovery', () => {
-  const gameCore = new GameCore(makeBlueStoneState());
-  gameCore.evaluate({
-    playerId: 'player-1',
-    type: 'interact',
-    entityId: 'blue-stone',
-  });
-  const second = gameCore.evaluate({
-    playerId: 'player-1',
-    type: 'interact',
-    entityId: 'blue-stone',
-  });
-  assert.ok(!second.accepted);
-  assert.deepStrictEqual([...gameCore.getState().discoveries], ['blue-stone']);
-});
-
-test('rejected repeated interaction emits no discovery event', () => {
-  const gameCore = new GameCore(makeBlueStoneState());
-  gameCore.evaluate({
-    playerId: 'player-1',
-    type: 'interact',
-    entityId: 'blue-stone',
-  });
-  const second = gameCore.evaluate({
-    playerId: 'player-1',
-    type: 'interact',
-    entityId: 'blue-stone',
-  });
-  assert.ok(!second.accepted);
-  assert.deepStrictEqual(second.events, []);
+  assert.strictEqual(second.state.version, versionBefore);
+  assert.strictEqual(gameCore.getState().version, versionBefore);
 });
 
 test('generic interaction with a non-blue-stone entity keeps generic behavior', () => {

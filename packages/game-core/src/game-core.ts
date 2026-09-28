@@ -32,6 +32,13 @@ import {
 } from './generation/proposal-corrector.js';
 import { freezeDomainEvent } from './domain/domain-events.js';
 import {
+  applyGameplayConsequence,
+  validateGameplayConsequence,
+  type ConsequenceApplicationResult,
+  type ConsequenceValidationResult,
+  type GameplayConsequence,
+} from './domain/gameplay-consequence.js';
+import {
   freezeGameState,
   type GameState,
   type Position,
@@ -67,6 +74,22 @@ export class GameCore {
 
   public getState(): GameState {
     return this.#state;
+  }
+
+  public validateConsequence(
+    consequence: GameplayConsequence,
+  ): ConsequenceValidationResult {
+    return validateGameplayConsequence(consequence, this.#state);
+  }
+
+  public applyConsequence(
+    consequence: GameplayConsequence,
+  ): ConsequenceApplicationResult {
+    const result = applyGameplayConsequence(consequence, this.#state);
+    if (result.accepted) {
+      this.#state = result.state;
+    }
+    return result;
   }
 
   public createGameplayContext(
@@ -618,41 +641,20 @@ export class GameCore {
       return createRejectedTransition(previousState, 'inapplicable_action');
     }
 
-    const updatedEntities = { ...previousState.world.entities };
-
-    if (action.entityId === 'blue-stone') {
-      updatedEntities[action.entityId] = {
-        ...entity,
-        state: 'discovered',
-      };
-    }
-
     const nextState = freezeGameState({
       player: previousState.player,
       pet: previousState.pet,
       version: previousState.version + 1,
-      discoveries: action.entityId === 'blue-stone'
-        ? [...previousState.discoveries, action.entityId]
-        : [...previousState.discoveries],
-      world: {
-        ...previousState.world,
-        entities: updatedEntities,
-      },
+      discoveries: [...previousState.discoveries],
+      world: previousState.world,
     });
 
-    const event = action.entityId === 'blue-stone'
-      ? freezeDomainEvent({
-          type: 'blue_stone_discovered',
-          playerId: previousState.player.id,
-          petId: previousState.pet.id,
-          entityId: action.entityId,
-        })
-      : freezeDomainEvent({
-          type: 'entity_interacted',
-          playerId: previousState.player.id,
-          petId: previousState.pet.id,
-          entityId: action.entityId,
-        });
+    const event = freezeDomainEvent({
+      type: 'entity_interacted',
+      playerId: previousState.player.id,
+      petId: previousState.pet.id,
+      entityId: action.entityId,
+    });
 
     const transition = freezeTransition({
       accepted: true,
