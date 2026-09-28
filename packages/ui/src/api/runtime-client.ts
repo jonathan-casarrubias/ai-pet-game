@@ -88,11 +88,6 @@ export class RuntimeClient {
       body: JSON.stringify({
         purpose,
         elementId,
-        contextualElement: {
-          id: elementId,
-          category: 'object',
-          attributes: ['visible', 'glowing', 'mysterious'],
-        },
       }),
     });
     if (!res.ok) {

@@ -12,6 +12,24 @@ export function createApp(sessionStore: SessionStore = new SessionStore()) {
   const app = express();
   app.use(express.json());
 
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    const origin = req.headers.origin;
+
+    if (origin === 'http://localhost:8081') {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Vary', 'Origin');
+      res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    }
+
+    if (req.method === 'OPTIONS') {
+      res.sendStatus(204);
+      return;
+    }
+
+    next();
+  });
+
   // POST /sessions
   app.post('/sessions', (req: Request, res: Response) => {
     const petName =

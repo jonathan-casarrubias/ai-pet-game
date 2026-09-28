@@ -1,10 +1,10 @@
 ﻿import React from 'react';
 import { View, Text, ActivityIndicator, StyleSheet, SafeAreaView } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import { WithSkiaWeb } from '@shopify/react-native-skia/lib/module/web';
 import { useGameSession } from './src/hooks/useGameSession';
-import { GameScreen } from './src/screens/GameScreen';
 
-export default function App() {
+function GameApp() {
   const { session, actions } = useGameSession('Lumi');
 
   if (session.phase === 'loading') {
@@ -29,12 +29,26 @@ export default function App() {
   }
 
   return (
-    <GameScreen
-      presentation={session.presentation}
-      actions={actions}
-      sessionId={session.sessionId}
+    <WithSkiaWeb<any>
+      getComponent={() => import('./src/screens/GameScreen').then((m) => ({ default: m.GameScreen }))}
+      fallback={
+        <SafeAreaView style={styles.centerContainer}>
+          <StatusBar style="light" />
+          <ActivityIndicator size="large" color="#a78bfa" />
+          <Text style={styles.loadingText}>Loading Skia Engine...</Text>
+        </SafeAreaView>
+      }
+      componentProps={{
+        presentation: session.presentation,
+        actions,
+        sessionId: session.sessionId,
+      }}
     />
   );
+}
+
+export default function App() {
+  return <GameApp />;
 }
 
 const styles = StyleSheet.create({
