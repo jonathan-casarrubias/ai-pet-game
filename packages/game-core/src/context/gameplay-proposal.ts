@@ -1,4 +1,5 @@
 import type { ContextualElement } from './contextual-element.js';
+import type { GameplayConsequence } from '../domain/gameplay-consequence.js';
 
 export type GameplayProposal = Readonly<{
   generationPurpose: string;
@@ -7,6 +8,7 @@ export type GameplayProposal = Readonly<{
   capabilityIds: readonly string[];
   narrative: string;
   activityId?: string;
+  consequences?: readonly GameplayConsequence[];
 }>;
 
 export type AcceptedGameplayContext = Readonly<{
@@ -18,6 +20,7 @@ export type AcceptedGameplayContext = Readonly<{
   }>;
   narrative: string;
   activityId?: string;
+  consequences?: readonly GameplayConsequence[];
 }>;
 
 export function createGameplayProposal(
@@ -27,6 +30,7 @@ export function createGameplayProposal(
   capabilityIds: readonly string[],
   narrative: string,
   activityId?: string,
+  consequences?: readonly GameplayConsequence[],
 ): GameplayProposal {
   return Object.freeze({
     generationPurpose,
@@ -43,6 +47,22 @@ export function createGameplayProposal(
     capabilityIds: Object.freeze([...capabilityIds]),
     narrative,
     ...(activityId !== undefined ? { activityId } : {}),
+    ...(consequences !== undefined
+      ? { consequences: Object.freeze(
+          consequences.map((c) => {
+            if (c.type === 'change_entity_state') {
+              return Object.freeze({ ...c });
+            }
+            if (c.type === 'spawn_entity') {
+              return Object.freeze({
+                ...c,
+                entity: Object.freeze(c.entity),
+              });
+            }
+            return Object.freeze(c);
+          }),
+        )}
+      : {}),
   });
 }
 
@@ -55,6 +75,7 @@ export function createAcceptedGameplayContext(
   }>,
   narrative: string,
   activityId?: string,
+  consequences?: readonly GameplayConsequence[],
 ): AcceptedGameplayContext {
   return Object.freeze({
     gameplayContext: Object.freeze({
@@ -75,5 +96,21 @@ export function createAcceptedGameplayContext(
     }),
     narrative,
     ...(activityId !== undefined ? { activityId } : {}),
+    ...(consequences !== undefined
+      ? { consequences: Object.freeze(
+          consequences.map((c) => {
+            if (c.type === 'change_entity_state') {
+              return Object.freeze({ ...c });
+            }
+            if (c.type === 'spawn_entity') {
+              return Object.freeze({
+                ...c,
+                entity: Object.freeze(c.entity),
+              });
+            }
+            return Object.freeze(c);
+          }),
+        )}
+      : {}),
   });
 }

@@ -3,7 +3,8 @@ export type ProposalRejectionCode =
   | 'STALE_STATE_VERSION'
   | 'PET_MISMATCH'
   | 'UNSUPPORTED_CONTEXTUAL_ELEMENT'
-  | 'INVALID_CAPABILITY';
+  | 'INVALID_CAPABILITY'
+  | 'INVALID_CONSEQUENCE';
 
 export type ProposalRejection = Readonly<{
   code: ProposalRejectionCode;

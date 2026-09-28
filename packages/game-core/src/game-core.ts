@@ -261,6 +261,25 @@ export class GameCore {
       };
     }
 
+    // Validate consequences if present
+    if (proposal.consequences && proposal.consequences.length > 0) {
+      for (let i = 0; i < proposal.consequences.length; i++) {
+        const consequence = proposal.consequences[i];
+        if (!consequence) continue;
+        const validation = this.validateConsequence(consequence);
+        if (!validation.valid) {
+          return {
+            valid: false,
+            rejection: createProposalRejection(
+              'INVALID_CONSEQUENCE',
+              validation.reason ?? 'Invalid consequence',
+              applicableCapabilityIds,
+            ),
+          };
+        }
+      }
+    }
+
     // All validations passed - return accepted context
     return {
       valid: true,
@@ -273,6 +292,7 @@ export class GameCore {
         },
         proposal.narrative,
         proposal.activityId,
+        proposal.consequences,
       ),
     };
   }
