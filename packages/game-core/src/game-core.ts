@@ -31,13 +31,23 @@ import {
   type ProposalCorrector,
 } from './generation/proposal-corrector.js';
 import { freezeDomainEvent } from './domain/domain-events.js';
-import { freezeGameState, type GameState } from './domain/game-state.js';
+import {
+  freezeGameState,
+  type GameState,
+  type Position,
+  type SpatialEntity,
+  type WorldState,
+} from './domain/game-state.js';
 import {
   isExplorePlayerAction,
+  isInteractPlayerAction,
+  isMovePlayerAction,
   isObservePlayerAction,
   isSupportedIntentType,
   isValidPlayerAction,
   type ExplorePlayerAction,
+  type InteractPlayerAction,
+  type MovePlayerAction,
   type ObservePlayerAction,
   type PlayerAction,
 } from './domain/player-actions.js';
@@ -379,6 +389,14 @@ export class GameCore {
       return createRejectedTransition(previousState, 'player_mismatch');
     }
 
+    if (isMovePlayerAction(action)) {
+      return this.evaluateMoveAction(previousState, action);
+    }
+
+    if (isInteractPlayerAction(action)) {
+      return this.evaluateInteractAction(previousState, action);
+    }
+
     if (isObservePlayerAction(action)) {
       return this.evaluateObserveAction(previousState, action, context);
     }
@@ -399,6 +417,7 @@ export class GameCore {
       },
       version: previousState.version + 1,
       discoveries: [...previousState.discoveries],
+      world: previousState.world,
     });
 
     const event = freezeDomainEvent(
@@ -456,6 +475,7 @@ export class GameCore {
       pet: previousState.pet,
       version: previousState.version + 1,
       discoveries: [...previousState.discoveries],
+      world: previousState.world,
     });
 
     const event = freezeDomainEvent({
@@ -507,6 +527,7 @@ export class GameCore {
       },
       version: previousState.version + 1,
       discoveries: [...previousState.discoveries, action.elementId],
+      world: previousState.world,
     });
 
     const event = freezeDomainEvent({
@@ -516,6 +537,100 @@ export class GameCore {
       petId: previousState.pet.id,
       elementId: action.elementId,
       interactionCount: nextState.pet.interactionCount,
+    });
+
+    const transition = freezeTransition({
+      accepted: true,
+      previousState,
+      state: nextState,
+      events: [event],
+    });
+
+    this.#state = nextState;
+    return transition;
+  }
+
+  private evaluateMoveAction(
+    previousState: GameState,
+    action: MovePlayerAction,
+  ): StateTransition {
+    const target = action.position;
+
+    if (!isPositionWithinBounds(target, previousState.world.bounds)) {
+      return createRejectedTransition(previousState, 'invalid_intent');
+    }
+
+    if (target.x === previousState.world.playerPos.x &&
+        target.y === previousState.world.playerPos.y) {
+      return createRejectedTransition(previousState, 'inapplicable_action');
+    }
+
+    const nextState = freezeGameState({
+      player: previousState.player,
+      pet: previousState.pet,
+      version: previousState.version + 1,
+      discoveries: [...previousState.discoveries],
+      world: {
+        ...previousState.world,
+        playerPos: { x: target.x, y: target.y },
+      },
+    });
+
+    const event = freezeDomainEvent({
+      type: 'pet_moved',
+      playerId: previousState.player.id,
+      petId: previousState.pet.id,
+      position: { x: target.x, y: target.y },
+    });
+
+    const transition = freezeTransition({
+      accepted: true,
+      previousState,
+      state: nextState,
+      events: [event],
+    });
+
+    this.#state = nextState;
+    return transition;
+  }
+
+  private evaluateInteractAction(
+    previousState: GameState,
+    action: InteractPlayerAction,
+  ): StateTransition {
+    const entity = previousState.world.entities[action.entityId];
+
+    if (entity === undefined) {
+      return createRejectedTransition(previousState, 'inapplicable_action');
+    }
+
+    if (!isInteractableEntity(entity.state)) {
+      return createRejectedTransition(previousState, 'inapplicable_action');
+    }
+
+    if (
+      !isWithinInteractionRadius(
+        previousState.world.playerPos,
+        entity.position,
+        entity.interactionRadius,
+      )
+    ) {
+      return createRejectedTransition(previousState, 'inapplicable_action');
+    }
+
+    const nextState = freezeGameState({
+      player: previousState.player,
+      pet: previousState.pet,
+      version: previousState.version + 1,
+      discoveries: [...previousState.discoveries],
+      world: previousState.world,
+    });
+
+    const event = freezeDomainEvent({
+      type: 'entity_interacted',
+      playerId: previousState.player.id,
+      petId: previousState.pet.id,
+      entityId: action.entityId,
     });
 
     const transition = freezeTransition({
@@ -541,4 +656,37 @@ function isCurrentGameState(
     contextState.pet.name === currentState.pet.name &&
     contextState.pet.interactionCount === currentState.pet.interactionCount
   );
+}
+
+function isPositionWithinBounds(
+  position: { x: number; y: number },
+  bounds: WorldState['bounds'],
+): boolean {
+  return (
+    position.x >= bounds.minX &&
+    position.x <= bounds.maxX &&
+    position.y >= bounds.minY &&
+    position.y <= bounds.maxY
+  );
+}
+
+function isInteractableEntity(state: SpatialEntity['state']): boolean {
+  return state === 'visible' || state === 'glowing' || state === 'active';
+}
+
+function calculateDistance(
+  a: Position,
+  b: Position,
+): number {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  return Math.sqrt(dx * dx + dy * dy);
+}
+
+function isWithinInteractionRadius(
+  playerPos: Position,
+  entityPos: Position,
+  interactionRadius: number,
+): boolean {
+  return calculateDistance(playerPos, entityPos) <= interactionRadius;
 }

@@ -800,6 +800,11 @@ test('accepts a valid pet question and produces a bounded domain event', () => {
     },
     version: 1,
     discoveries: [],
+    world: {
+      bounds: { minX: 0, minY: 0, maxX: 400, maxY: 400 },
+      playerPos: { x: 200, y: 200 },
+      entities: {},
+    },
   });
 
   assert.deepStrictEqual(transition.events, [

@@ -41,15 +41,26 @@ export {
 export type { DomainEvent } from './domain/domain-events.js';
 export {
   createInitialGameState,
+  freezeGameState,
   type GameState,
   type Pet,
   type Player,
+  type Position,
+  type WorldBounds,
+  type SpatialEntity,
+  type WorldState,
 } from './domain/game-state.js';
 export type {
   ExplorePlayerAction,
+  MovePlayerAction,
+  InteractPlayerAction,
   ObservePlayerAction,
   PlayerAction,
   PlayerIntent,
+} from './domain/player-actions.js';
+export {
+  isMovePlayerAction,
+  isInteractPlayerAction,
 } from './domain/player-actions.js';
 export type {
   RejectionReason,

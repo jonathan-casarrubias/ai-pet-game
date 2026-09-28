@@ -24,6 +24,18 @@ export type DomainEvent =
       petId: string;
       elementId: string;
       interactionCount: number;
+    }>
+  | Readonly<{
+      type: 'pet_moved';
+      playerId: string;
+      petId: string;
+      position: { x: number; y: number };
+    }>
+  | Readonly<{
+      type: 'entity_interacted';
+      playerId: string;
+      petId: string;
+      entityId: string;
     }>;
 
 export function freezeDomainEvent(event: DomainEvent): DomainEvent {
