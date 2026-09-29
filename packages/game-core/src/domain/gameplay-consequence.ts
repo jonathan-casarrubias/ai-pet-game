@@ -47,6 +47,71 @@ export type ConsequenceValidationResult = Readonly<{
   reason?: string;
 }>;
 
+export function isEntityThreatened(
+  source: SpatialEntity | undefined | null,
+  target: SpatialEntity | undefined | null,
+): boolean {
+  if (source === undefined || source === null || target === undefined || target === null) {
+    return false;
+  }
+
+  if (source.role !== 'threat') {
+    return false;
+  }
+
+  if (
+    typeof source.threatRadius !== 'number' ||
+    !Number.isFinite(source.threatRadius) ||
+    source.threatRadius < 0
+  ) {
+    return false;
+  }
+
+  if (target.state === 'discovered' || target.state === 'escaped') {
+    return false;
+  }
+
+  const dx = target.position.x - source.position.x;
+  const dy = target.position.y - source.position.y;
+  const distance = Math.sqrt(dx * dx + dy * dy);
+
+  return distance <= source.threatRadius;
+}
+
+function checkEscapeTransition(
+  entity: SpatialEntity,
+  newPos: { x: number; y: number },
+  threatSources: Iterable<SpatialEntity>,
+): SpatialEntity['state'] {
+  if (entity.state === 'discovered' || entity.state === 'escaped') {
+    return entity.state;
+  }
+
+  for (const other of threatSources) {
+    if (
+      other.id !== entity.id &&
+      other.role === 'threat' &&
+      typeof other.threatRadius === 'number' &&
+      Number.isFinite(other.threatRadius) &&
+      other.threatRadius >= 0
+    ) {
+      const beforeDist = Math.sqrt(
+        (entity.position.x - other.position.x) ** 2 +
+        (entity.position.y - other.position.y) ** 2,
+      );
+      const afterDist = Math.sqrt(
+        (newPos.x - other.position.x) ** 2 +
+        (newPos.y - other.position.y) ** 2,
+      );
+      if (beforeDist <= other.threatRadius && afterDist > other.threatRadius) {
+        return 'escaped';
+      }
+    }
+  }
+
+  return entity.state;
+}
+
 export function validateGameplayConsequence(
   consequence: GameplayConsequence,
   state: GameState,
@@ -134,6 +199,24 @@ function validateSpawnEntity(
   const validTypes: SpatialEntity['type'][] = ['object', 'creature', 'hazard'];
   if (!validTypes.includes(entity.type)) {
     return { valid: false, reason: 'Invalid entity type' };
+  }
+
+  const validRoles: NonNullable<SpatialEntity['role']>[] = ['neutral', 'threat', 'helper'];
+  if (entity.role !== undefined && !validRoles.includes(entity.role)) {
+    return { valid: false, reason: 'Invalid entity role' };
+  }
+
+  if (entity.threatRadius !== undefined) {
+    if (typeof entity.threatRadius !== 'number' || !Number.isFinite(entity.threatRadius)) {
+      return { valid: false, reason: 'Threat radius must be finite' };
+    }
+    if (entity.threatRadius < 0) {
+      return { valid: false, reason: 'Threat radius cannot be negative' };
+    }
+  }
+
+  if (entity.role === 'threat' && entity.threatRadius === undefined) {
+    return { valid: false, reason: 'Threat entity requires threat radius' };
   }
 
   const validStates: SpatialEntity['state'][] = [
@@ -418,9 +501,13 @@ export function applyConsequenceBatch(
       newX = Math.max(bounds.minX, Math.min(bounds.maxX, newX));
       newY = Math.max(bounds.minY, Math.min(bounds.maxY, newY));
 
+      const newPos = { x: newX, y: newY };
+      const nextState = checkEscapeTransition(entity, newPos, Object.values(state.world.entities));
+
       workingEntities[c.entityId] = {
         ...entity,
-        position: { x: newX, y: newY },
+        position: newPos,
+        state: nextState,
       };
     }
   }
@@ -466,9 +553,13 @@ function applyMoveEntity(
   newX = Math.max(bounds.minX, Math.min(bounds.maxX, newX));
   newY = Math.max(bounds.minY, Math.min(bounds.maxY, newY));
 
+  const newPos = { x: newX, y: newY };
+  const nextState = checkEscapeTransition(entity, newPos, Object.values(state.world.entities));
+
   const updatedEntity: SpatialEntity = {
     ...entity,
-    position: { x: newX, y: newY },
+    position: newPos,
+    state: nextState,
   };
 
   const updatedEntities: Record<string, SpatialEntity> = {
@@ -476,7 +567,7 @@ function applyMoveEntity(
     [entityId]: updatedEntity,
   };
 
-  const nextState = freezeGameState({
+  const nextGameState = freezeGameState({
     ...state,
     version: state.version + 1,
     world: {
@@ -485,5 +576,5 @@ function applyMoveEntity(
     },
   });
 
-  return Object.freeze({ accepted: true, state: nextState });
+  return Object.freeze({ accepted: true, state: nextGameState });
 }

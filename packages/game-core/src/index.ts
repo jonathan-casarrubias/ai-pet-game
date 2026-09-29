@@ -41,6 +41,7 @@ export {
 export type { DomainEvent } from './domain/domain-events.js';
 export {
   applyConsequenceBatch,
+  isEntityThreatened,
   applyGameplayConsequence,
   validateGameplayConsequence,
   type BatchConsequenceApplicationResult,
@@ -62,6 +63,7 @@ export {
   type WorldBounds,
   type SpatialEntity,
   type WorldState,
+  type EntityRole,
 } from './domain/game-state.js';
 export type {
   ExplorePlayerAction,

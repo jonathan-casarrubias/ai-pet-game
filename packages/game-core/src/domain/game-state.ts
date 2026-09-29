@@ -20,13 +20,17 @@ export type WorldBounds = Readonly<{
   maxY: number;
 }>;
 
+export type EntityRole = 'neutral' | 'threat' | 'helper';
+
 export type SpatialEntity = Readonly<{
   id: string;
   type: 'object' | 'creature' | 'hazard';
+  role?: EntityRole;
   label: string;
   position: Position;
   state: 'visible' | 'glowing' | 'discovered' | 'active' | 'escaped';
   interactionRadius: number;
+  threatRadius?: number;
 }>;
 
 export type WorldState = Readonly<{
