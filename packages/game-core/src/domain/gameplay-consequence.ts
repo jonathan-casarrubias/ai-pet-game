@@ -1,5 +1,4 @@
 import { freezeGameState, type GameState, type SpatialEntity } from './game-state.js';
-import type { WorldBounds } from './game-state.js';
 
 export type ChangeEntityStateConsequence = Readonly<{
   type: 'change_entity_state';
@@ -17,10 +16,19 @@ export type RecordDiscoveryConsequence = Readonly<{
   entityId: string;
 }>;
 
+export type MoveEntityConsequence = Readonly<{
+  type: 'move_entity';
+  entityId: string;
+  targetId: string;
+}>;
+
 export type GameplayConsequence =
   | ChangeEntityStateConsequence
   | SpawnEntityConsequence
-  | RecordDiscoveryConsequence;
+  | RecordDiscoveryConsequence
+  | MoveEntityConsequence;
+
+const CHASE_STEP_SIZE = 10;
 
 export type ConsequenceApplicationResult = Readonly<
   | {
@@ -53,6 +61,10 @@ export function validateGameplayConsequence(
 
   if (consequence.type === 'record_discovery') {
     return validateRecordDiscovery(consequence, state);
+  }
+
+  if (consequence.type === 'move_entity') {
+    return validateMoveEntity(consequence, state);
   }
 
   return { valid: false, reason: 'Unknown consequence type' };
@@ -146,7 +158,7 @@ function validateSpawnEntity(
     return { valid: false, reason: 'Invalid position values' };
   }
 
-  const bounds: WorldBounds = state.world.bounds;
+  const bounds = state.world.bounds;
   if (
     entity.position.x < bounds.minX ||
     entity.position.x > bounds.maxX ||
@@ -187,6 +199,33 @@ function validateRecordDiscovery(
 
   if (state.discoveries.includes(entityId)) {
     return { valid: false, reason: 'Discovery already recorded' };
+  }
+
+  return { valid: true };
+}
+
+function validateMoveEntity(
+  consequence: MoveEntityConsequence,
+  state: GameState,
+): ConsequenceValidationResult {
+  const { entityId, targetId } = consequence;
+
+  if (typeof entityId !== 'string' || entityId.trim().length === 0) {
+    return { valid: false, reason: 'Invalid entity ID' };
+  }
+
+  if (typeof targetId !== 'string' || targetId.trim().length === 0) {
+    return { valid: false, reason: 'Invalid target ID' };
+  }
+
+  const entity = state.world.entities[entityId];
+  if (entity === undefined) {
+    return { valid: false, reason: 'Entity not found' };
+  }
+
+  const target = state.world.entities[targetId];
+  if (target === undefined) {
+    return { valid: false, reason: 'Target entity not found' };
   }
 
   return { valid: true };
@@ -240,6 +279,10 @@ export function applyGameplayConsequence(
     return Object.freeze({ accepted: true, state: nextState });
   }
 
+  if (consequence.type === 'move_entity') {
+    return applyMoveEntity(consequence, state);
+  }
+
   // SpawnEntityConsequence
   const spawnedEntity: SpatialEntity = {
     ...consequence.entity,
@@ -262,7 +305,6 @@ export function applyGameplayConsequence(
 
   return Object.freeze({ accepted: true, state: nextState });
 }
-
 
 export type BatchConsequenceApplicationResult = Readonly<
   | {
@@ -300,6 +342,7 @@ export function applyConsequenceBatch(
   // 2. Conflict validation: Reject duplicate entity IDs within the same batch
   const spawnedIds = new Set<string>();
   const discoveredIds = new Set<string>();
+  const movedIds = new Set<string>();
 
   for (let i = 0; i < consequences.length; i++) {
     const c = consequences[i]!;
@@ -321,6 +364,15 @@ export function applyConsequenceBatch(
         });
       }
       discoveredIds.add(c.entityId);
+    } else if (c.type === 'move_entity') {
+      if (movedIds.has(c.entityId)) {
+        return Object.freeze({
+          accepted: false,
+          state,
+          reason: 'Duplicate move_entity entity ID in batch',
+        });
+      }
+      movedIds.add(c.entityId);
     }
   }
 
@@ -344,6 +396,32 @@ export function applyConsequenceBatch(
         position: { ...c.entity.position },
       };
       workingEntities[spawned.id] = spawned;
+    } else if (c.type === 'move_entity') {
+      const entity = workingEntities[c.entityId]!;
+      const target = state.world.entities[c.targetId]!;
+      const dx = target.position.x - entity.position.x;
+      const dy = target.position.y - entity.position.y;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+
+      let newX: number;
+      let newY: number;
+
+      if (distance <= CHASE_STEP_SIZE) {
+        newX = target.position.x;
+        newY = target.position.y;
+      } else {
+        newX = entity.position.x + (dx / distance) * CHASE_STEP_SIZE;
+        newY = entity.position.y + (dy / distance) * CHASE_STEP_SIZE;
+      }
+
+      const bounds = state.world.bounds;
+      newX = Math.max(bounds.minX, Math.min(bounds.maxX, newX));
+      newY = Math.max(bounds.minY, Math.min(bounds.maxY, newY));
+
+      workingEntities[c.entityId] = {
+        ...entity,
+        position: { x: newX, y: newY },
+      };
     }
   }
 
@@ -355,6 +433,55 @@ export function applyConsequenceBatch(
     world: {
       ...state.world,
       entities: workingEntities,
+    },
+  });
+
+  return Object.freeze({ accepted: true, state: nextState });
+}
+
+function applyMoveEntity(
+  consequence: MoveEntityConsequence,
+  state: GameState,
+): ConsequenceApplicationResult {
+  const { entityId, targetId } = consequence;
+  const entity = state.world.entities[entityId]!;
+  const target = state.world.entities[targetId]!;
+
+  const dx = target.position.x - entity.position.x;
+  const dy = target.position.y - entity.position.y;
+  const distance = Math.sqrt(dx * dx + dy * dy);
+
+  let newX: number;
+  let newY: number;
+
+  if (distance <= CHASE_STEP_SIZE) {
+    newX = target.position.x;
+    newY = target.position.y;
+  } else {
+    newX = entity.position.x + (dx / distance) * CHASE_STEP_SIZE;
+    newY = entity.position.y + (dy / distance) * CHASE_STEP_SIZE;
+  }
+
+  const bounds = state.world.bounds;
+  newX = Math.max(bounds.minX, Math.min(bounds.maxX, newX));
+  newY = Math.max(bounds.minY, Math.min(bounds.maxY, newY));
+
+  const updatedEntity: SpatialEntity = {
+    ...entity,
+    position: { x: newX, y: newY },
+  };
+
+  const updatedEntities: Record<string, SpatialEntity> = {
+    ...state.world.entities,
+    [entityId]: updatedEntity,
+  };
+
+  const nextState = freezeGameState({
+    ...state,
+    version: state.version + 1,
+    world: {
+      ...state.world,
+      entities: updatedEntities,
     },
   });
 

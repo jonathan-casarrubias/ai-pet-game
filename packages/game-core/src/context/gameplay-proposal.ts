@@ -59,6 +59,9 @@ export function createGameplayProposal(
                 entity: Object.freeze(c.entity),
               });
             }
+            if (c.type === 'move_entity') {
+              return Object.freeze({ ...c });
+            }
             return Object.freeze(c);
           }),
         )}
@@ -107,6 +110,9 @@ export function createAcceptedGameplayContext(
                 ...c,
                 entity: Object.freeze(c.entity),
               });
+            }
+            if (c.type === 'move_entity') {
+              return Object.freeze({ ...c });
             }
             return Object.freeze(c);
           }),

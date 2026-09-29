@@ -46,6 +46,7 @@ export {
   type BatchConsequenceApplicationResult,
   type ChangeEntityStateConsequence,
   type SpawnEntityConsequence,
+  type MoveEntityConsequence,
   type RecordDiscoveryConsequence,
   type GameplayConsequence,
   type ConsequenceApplicationResult,
