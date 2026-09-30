@@ -36,6 +36,7 @@ export class ProviderGameplayGenerator implements GameplayGenerator {
       context.gameplayContext.applicableCapabilityIds,
       result.narrative,
       result.activityId,
+      result.consequences,
     );
   }
 }

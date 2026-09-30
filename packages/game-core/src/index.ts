@@ -42,6 +42,7 @@ export type { DomainEvent } from './domain/domain-events.js';
 export {
   applyConsequenceBatch,
   isEntityThreatened,
+  isLumiThreatened,
   applyGameplayConsequence,
   validateGameplayConsequence,
   type BatchConsequenceApplicationResult,

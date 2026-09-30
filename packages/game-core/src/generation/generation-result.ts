@@ -1,3 +1,5 @@
+import type { GameplayConsequence } from '../domain/gameplay-consequence.js';
+
 export type GenerationError =
   | Readonly<{
       code: 'PROVIDER_UNAVAILABLE';
@@ -17,6 +19,7 @@ export type GenerationResult =
       success: true;
       narrative: string;
       activityId?: string;
+      consequences?: readonly GameplayConsequence[];
     }>
   | Readonly<{
       success: false;

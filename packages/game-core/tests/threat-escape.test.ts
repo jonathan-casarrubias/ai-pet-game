@@ -7,6 +7,8 @@ import {
   createInitialGameState,
   freezeGameState,
   isEntityThreatened,
+  isLumiThreatened,
+  GameCore,
   validateGameplayConsequence,
   type GameState,
   type MoveEntityConsequence,
@@ -518,4 +520,153 @@ test('13. Batch movement applies the same escape rule atomically', () => {
 
   assert.strictEqual(result.state.world.entities['runner2']!.state, 'visible');
   assert.strictEqual(result.state.world.entities['runner2']!.position.x, 60);
+});
+
+test('14. isLumiThreatened evaluates threat proximity against playerPos correctly', () => {
+  const threat: SpatialEntity = {
+    id: 'threat-1',
+    type: 'creature',
+    role: 'threat',
+    threatRadius: 25,
+    label: 'Chaser',
+    position: { x: 200, y: 200 },
+    state: 'active',
+    interactionRadius: 10,
+  };
+
+  const stateNear = createBaseState({ 'threat-1': threat });
+  // Lumi starts at (200, 200), distance 0 <= 25 -> threatened
+  assert.strictEqual(isLumiThreatened(stateNear, threat), true);
+  assert.strictEqual(isLumiThreatened({ x: 200, y: 200 }, threat), true);
+  assert.strictEqual(isLumiThreatened({ x: 220, y: 200 }, threat), true); // distance 20 <= 25
+
+  // Outside threat radius: (230, 200) distance 30 > 25 -> not threatened
+  assert.strictEqual(isLumiThreatened({ x: 230, y: 200 }, threat), false);
+
+  // Non-threat role -> not threatened
+  const neutral: SpatialEntity = { ...threat, role: 'neutral' };
+  assert.strictEqual(isLumiThreatened({ x: 200, y: 200 }, neutral), false);
+  assert.strictEqual(isLumiThreatened({ x: 200, y: 200 }, undefined), false);
+});
+
+test('15. Player movement: inside threat -> outside emits pet_escaped_threat event and updates playerPos', () => {
+  const threat: SpatialEntity = {
+    id: 'threat-zone',
+    type: 'hazard',
+    role: 'threat',
+    threatRadius: 20,
+    label: 'Quicksand',
+    position: { x: 200, y: 200 },
+    state: 'active',
+    interactionRadius: 10,
+  };
+  const state = createBaseState({ 'threat-zone': threat });
+  const gameCore = new GameCore(state);
+
+  // Initial state: Lumi at (200, 200), inside threat radius
+  assert.strictEqual(isLumiThreatened(gameCore.getState(), threat), true);
+
+  // Player decides to move Lumi to (230, 200) (distance 30 > 20)
+  const transition = gameCore.evaluate({
+    playerId: 'player-1',
+    type: 'move',
+    position: { x: 230, y: 200 },
+  });
+
+  assert.ok(transition.accepted);
+  assert.strictEqual(transition.state.version, 1);
+  assert.strictEqual(transition.state.world.playerPos.x, 230);
+  assert.strictEqual(isLumiThreatened(transition.state, threat), false);
+
+  // Emits move event and escape event
+  assert.strictEqual(transition.events.length, 2);
+  assert.strictEqual(transition.events[0]?.type, 'pet_moved');
+  assert.strictEqual(transition.events[1]?.type, 'pet_escaped_threat');
+  if (transition.events[1]?.type === 'pet_escaped_threat') {
+    assert.strictEqual(transition.events[1].threatEntityId, 'threat-zone');
+  }
+
+  // Previous state remains immutable
+  assert.strictEqual(state.version, 0);
+  assert.strictEqual(state.world.playerPos.x, 200);
+});
+
+test('16. Player movement: inside threat -> still inside does not emit escape event', () => {
+  const threat: SpatialEntity = {
+    id: 'threat-zone',
+    type: 'hazard',
+    role: 'threat',
+    threatRadius: 50,
+    label: 'Danger Area',
+    position: { x: 200, y: 200 },
+    state: 'active',
+    interactionRadius: 10,
+  };
+  const state = createBaseState({ 'threat-zone': threat });
+  const gameCore = new GameCore(state);
+
+  // Move from (200, 200) to (210, 200) -> distance 10 <= 50 (still inside)
+  const transition = gameCore.evaluate({
+    playerId: 'player-1',
+    type: 'move',
+    position: { x: 210, y: 200 },
+  });
+
+  assert.ok(transition.accepted);
+  assert.strictEqual(isLumiThreatened(transition.state, threat), true);
+  assert.strictEqual(transition.events.length, 1);
+  assert.strictEqual(transition.events[0]?.type, 'pet_moved');
+});
+
+test('17. Player movement: starting outside -> moving outside does not emit escape event', () => {
+  const threat: SpatialEntity = {
+    id: 'threat-zone',
+    type: 'hazard',
+    role: 'threat',
+    threatRadius: 15,
+    label: 'Small Danger',
+    position: { x: 100, y: 100 },
+    state: 'active',
+    interactionRadius: 10,
+  };
+  // Lumi starts at (200, 200), distance to (100, 100) is > 100 > 15 (outside)
+  const state = createBaseState({ 'threat-zone': threat });
+  const gameCore = new GameCore(state);
+
+  // Move to (250, 250) (still outside)
+  const transition = gameCore.evaluate({
+    playerId: 'player-1',
+    type: 'move',
+    position: { x: 250, y: 250 },
+  });
+
+  assert.ok(transition.accepted);
+  assert.strictEqual(transition.events.length, 1);
+  assert.strictEqual(transition.events[0]?.type, 'pet_moved');
+});
+
+test('18. MoveEntityConsequence can target player directly without making player a SpatialEntity', () => {
+  const threat: SpatialEntity = {
+    id: 'stalker',
+    type: 'creature',
+    role: 'threat',
+    threatRadius: 20,
+    label: 'Stalker',
+    position: { x: 250, y: 200 },
+    state: 'active',
+    interactionRadius: 10,
+  };
+  const state = createBaseState({ 'stalker': threat });
+  const gameCore = new GameCore(state);
+
+  // Lumi is at (200, 200). Stalker moves toward 'player'
+  const consequence: MoveEntityConsequence = {
+    type: 'move_entity',
+    entityId: 'stalker',
+    targetId: 'player',
+  };
+
+  const result = gameCore.applyConsequence(consequence);
+  assert.ok(result.accepted);
+  assert.strictEqual(result.state.world.entities['stalker']?.position.x, 240); // 10 units closer to 200
 });

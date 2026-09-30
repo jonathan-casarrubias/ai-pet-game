@@ -56,6 +56,7 @@ test('ProviderGameplayGenerator passes bounded GenerationRequest to provider', a
   assert.strictEqual(capturedRequest!.relevantState.pet.interactionCount, 0);
   assert.strictEqual(capturedRequest!.relevantState.discoveryCount, 0);
   assert.deepStrictEqual(capturedRequest!.relevantState.recentDiscoveries, []);
+  assert.deepStrictEqual(capturedRequest!.relevantState.escapedThreats, []);
   assert.deepStrictEqual(capturedRequest!.contextualElements, [
     { id: 'blue-stone', category: 'object', attributes: ['visible', 'glowing'] },
   ]);
@@ -140,4 +141,24 @@ test('ProviderGameplayGenerator surfaces provider failure as Error', async () =>
     generator.generate(context),
     /Generation provider failed: PROVIDER_UNAVAILABLE/,
   );
+});
+
+test('ProviderGameplayGenerator maps consequences when provided by GenerationResult', async () => {
+  const gameCore = new GameCore(createInitialGameState({ id: 'player-1' }, { id: 'pet-1', name: 'Lumi' }));
+  const context = createTestContext(gameCore);
+  const provider = createFakeProvider({
+    success: true,
+    narrative: 'Lumi discovers something.',
+    consequences: [
+      {
+        type: 'record_discovery',
+        entityId: 'blue-stone',
+      },
+    ],
+  });
+  const generator = new ProviderGameplayGenerator(provider);
+  const proposal = await generator.generate(context);
+  assert.ok(proposal.consequences !== undefined);
+  assert.strictEqual(proposal.consequences.length, 1);
+  assert.strictEqual(proposal.consequences[0]?.type, 'record_discovery');
 });

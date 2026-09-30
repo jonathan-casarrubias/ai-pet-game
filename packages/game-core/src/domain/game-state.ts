@@ -44,6 +44,7 @@ export type GameState = Readonly<{
   pet: Pet;
   version: number;
   discoveries: readonly string[];
+  escapedThreats: readonly string[];
   world: WorldState;
 }>;
 
@@ -60,6 +61,7 @@ export function createInitialGameState(
     },
     version: 0,
     discoveries: [],
+    escapedThreats: [],
     world: Object.freeze({
       bounds: Object.freeze({ minX: 0, minY: 0, maxX: 400, maxY: 400 }),
       playerPos: Object.freeze({ x: 200, y: 200 }),
@@ -74,6 +76,7 @@ export function freezeGameState(state: GameState): GameState {
     pet: Object.freeze({ ...state.pet }),
     version: state.version,
     discoveries: Object.freeze([...state.discoveries]),
+    escapedThreats: Object.freeze([...state.escapedThreats]),
     world: Object.freeze({
       bounds: state.world.bounds,
       playerPos: Object.freeze({ ...state.world.playerPos }),

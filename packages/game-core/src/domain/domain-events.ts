@@ -32,6 +32,12 @@ export type DomainEvent =
       position: { x: number; y: number };
     }>
   | Readonly<{
+      type: 'pet_escaped_threat';
+      playerId: string;
+      petId: string;
+      threatEntityId: string;
+    }>
+  | Readonly<{
       type: 'entity_interacted';
       playerId: string;
       petId: string;

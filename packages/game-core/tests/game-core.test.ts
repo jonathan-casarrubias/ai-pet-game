@@ -370,6 +370,7 @@ test('creates a controlled generation context from validated runtime context', (
       },
       discoveryCount: 0,
       recentDiscoveries: [],
+      escapedThreats: [],
     },
     gameplayContext: {
       contextualElements: [contextualElement],
@@ -418,6 +419,7 @@ test('does not expose internal pet identity in relevant generation state', () =>
   assert.ok(controlledContext);
   assert.deepStrictEqual(Object.keys(controlledContext.relevantState).sort(), [
     'discoveryCount',
+    'escapedThreats',
     'pet',
     'recentDiscoveries',
   ]);
@@ -800,6 +802,7 @@ test('accepts a valid pet question and produces a bounded domain event', () => {
     },
     version: 1,
     discoveries: [],
+    escapedThreats: [],
     world: {
       bounds: { minX: 0, minY: 0, maxX: 400, maxY: 400 },
       playerPos: { x: 200, y: 200 },

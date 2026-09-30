@@ -1,4 +1,4 @@
-import { freezeGameState, type GameState, type SpatialEntity } from './game-state.js';
+import { freezeGameState, type GameState, type Position, type SpatialEntity } from './game-state.js';
 
 export type ChangeEntityStateConsequence = Readonly<{
   type: 'change_entity_state';
@@ -78,6 +78,36 @@ export function isEntityThreatened(
   return distance <= source.threatRadius;
 }
 
+export function isLumiThreatened(
+  stateOrPos: GameState | Position,
+  threat: SpatialEntity | undefined | null,
+): boolean {
+  if (threat === undefined || threat === null) {
+    return false;
+  }
+
+  if (threat.role !== 'threat') {
+    return false;
+  }
+
+  if (
+    typeof threat.threatRadius !== 'number' ||
+    !Number.isFinite(threat.threatRadius) ||
+    threat.threatRadius < 0
+  ) {
+    return false;
+  }
+
+  const lumiPos: Position =
+    'world' in stateOrPos ? stateOrPos.world.playerPos : stateOrPos;
+
+  const dx = lumiPos.x - threat.position.x;
+  const dy = lumiPos.y - threat.position.y;
+  const distance = Math.sqrt(dx * dx + dy * dy);
+
+  return distance <= threat.threatRadius;
+}
+
 function checkEscapeTransition(
   entity: SpatialEntity,
   newPos: { x: number; y: number },
@@ -110,6 +140,22 @@ function checkEscapeTransition(
   }
 
   return entity.state;
+}
+
+function getTargetPosition(
+  targetId: string,
+  state: GameState,
+): Position | undefined {
+  if (
+    targetId === 'player' ||
+    targetId === 'lumi' ||
+    targetId === state.player.id ||
+    targetId === state.pet.id
+  ) {
+    return state.world.playerPos;
+  }
+
+  return state.world.entities[targetId]?.position;
 }
 
 export function validateGameplayConsequence(
@@ -306,8 +352,8 @@ function validateMoveEntity(
     return { valid: false, reason: 'Entity not found' };
   }
 
-  const target = state.world.entities[targetId];
-  if (target === undefined) {
+  const targetPos = getTargetPosition(targetId, state);
+  if (targetPos === undefined) {
     return { valid: false, reason: 'Target entity not found' };
   }
 
@@ -332,6 +378,7 @@ export function applyGameplayConsequence(
       ...state,
       version: state.version + 1,
       discoveries: [...state.discoveries, consequence.entityId],
+      escapedThreats: state.escapedThreats,
       world: state.world,
     });
 
@@ -353,6 +400,7 @@ export function applyGameplayConsequence(
     const nextState = freezeGameState({
       ...state,
       version: state.version + 1,
+      escapedThreats: state.escapedThreats,
       world: {
         ...state.world,
         entities: updatedEntities,
@@ -377,6 +425,7 @@ export function applyGameplayConsequence(
   const nextState = freezeGameState({
     ...state,
     version: state.version + 1,
+    escapedThreats: state.escapedThreats,
     world: {
       ...state.world,
       entities: {
@@ -481,17 +530,17 @@ export function applyConsequenceBatch(
       workingEntities[spawned.id] = spawned;
     } else if (c.type === 'move_entity') {
       const entity = workingEntities[c.entityId]!;
-      const target = state.world.entities[c.targetId]!;
-      const dx = target.position.x - entity.position.x;
-      const dy = target.position.y - entity.position.y;
+      const targetPos = getTargetPosition(c.targetId, state)!;
+      const dx = targetPos.x - entity.position.x;
+      const dy = targetPos.y - entity.position.y;
       const distance = Math.sqrt(dx * dx + dy * dy);
 
       let newX: number;
       let newY: number;
 
       if (distance <= CHASE_STEP_SIZE) {
-        newX = target.position.x;
-        newY = target.position.y;
+        newX = targetPos.x;
+        newY = targetPos.y;
       } else {
         newX = entity.position.x + (dx / distance) * CHASE_STEP_SIZE;
         newY = entity.position.y + (dy / distance) * CHASE_STEP_SIZE;
@@ -517,6 +566,7 @@ export function applyConsequenceBatch(
     ...state,
     version: state.version + 1,
     discoveries: workingDiscoveries,
+    escapedThreats: state.escapedThreats,
     world: {
       ...state.world,
       entities: workingEntities,
@@ -532,18 +582,18 @@ function applyMoveEntity(
 ): ConsequenceApplicationResult {
   const { entityId, targetId } = consequence;
   const entity = state.world.entities[entityId]!;
-  const target = state.world.entities[targetId]!;
+  const targetPos = getTargetPosition(targetId, state)!;
 
-  const dx = target.position.x - entity.position.x;
-  const dy = target.position.y - entity.position.y;
+  const dx = targetPos.x - entity.position.x;
+  const dy = targetPos.y - entity.position.y;
   const distance = Math.sqrt(dx * dx + dy * dy);
 
   let newX: number;
   let newY: number;
 
   if (distance <= CHASE_STEP_SIZE) {
-    newX = target.position.x;
-    newY = target.position.y;
+    newX = targetPos.x;
+    newY = targetPos.y;
   } else {
     newX = entity.position.x + (dx / distance) * CHASE_STEP_SIZE;
     newY = entity.position.y + (dy / distance) * CHASE_STEP_SIZE;
@@ -570,6 +620,7 @@ function applyMoveEntity(
   const nextGameState = freezeGameState({
     ...state,
     version: state.version + 1,
+    escapedThreats: state.escapedThreats,
     world: {
       ...state.world,
       entities: updatedEntities,

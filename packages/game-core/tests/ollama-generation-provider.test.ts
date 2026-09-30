@@ -19,6 +19,7 @@ function buildRequest(): GenerationRequest {
       pet: { name: 'Lumi', interactionCount: 0 },
       discoveryCount: 0,
       recentDiscoveries: [],
+      escapedThreats: [],
     },
     contextualElements: [{ id: 'blue-stone', category: 'object', attributes: ['visible'] }],
     applicableCapabilityIds: ['observe', 'explore'],

@@ -10,6 +10,7 @@ export type GenerationRequest = Readonly<{
     }>;
     discoveryCount: number;
     recentDiscoveries: readonly string[];
+    escapedThreats: readonly string[];
   }>;
   contextualElements: readonly ContextualElement[];
   applicableCapabilityIds: readonly string[];
@@ -32,6 +33,7 @@ export function createGenerationRequest(
       }),
       discoveryCount: relevantState.discoveryCount,
       recentDiscoveries: Object.freeze([...relevantState.recentDiscoveries]),
+      escapedThreats: Object.freeze([...relevantState.escapedThreats]),
     }),
     contextualElements: Object.freeze(contextualElements),
     applicableCapabilityIds: Object.freeze([...applicableCapabilityIds]),

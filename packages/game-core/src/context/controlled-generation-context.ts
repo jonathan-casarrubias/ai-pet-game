@@ -9,6 +9,7 @@ export type RelevantGenerationState = Readonly<{
   }>;
   discoveryCount: number;
   recentDiscoveries: readonly string[];
+  escapedThreats: readonly string[];
 }>;
 
 export type GenerationGameplayContext = Readonly<{
@@ -52,6 +53,7 @@ export function createControlledGenerationContext(
       }),
       discoveryCount: relevantState.discoveryCount,
       recentDiscoveries: Object.freeze([...relevantState.recentDiscoveries]),
+      escapedThreats: Object.freeze([...relevantState.escapedThreats]),
     }),
     gameplayContext: Object.freeze({
       contextualElements: Object.freeze(

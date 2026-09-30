@@ -16,6 +16,7 @@ function createBaseGameState(): import('../src/index.js').GameState {
     pet: { id: 'pet-1', name: 'Lumi', interactionCount: 0 },
     version: 0,
     discoveries: [],
+    escapedThreats: [],
     world: {
       bounds: { minX: 0, minY: 0, maxX: 400, maxY: 400 },
       playerPos: { x: 200, y: 200 },

@@ -203,6 +203,7 @@ export class GameCore {
         },
         discoveryCount: currentState.discoveries.length,
         recentDiscoveries: [...currentState.discoveries],
+        escapedThreats: [...currentState.escapedThreats],
       },
       {
         contextualElements: gameplayContext.contextualElements,
@@ -494,6 +495,7 @@ export class GameCore {
       },
       version: previousState.version + 1,
       discoveries: [...previousState.discoveries],
+      escapedThreats: previousState.escapedThreats,
       world: previousState.world,
     });
 
@@ -552,6 +554,7 @@ export class GameCore {
       pet: previousState.pet,
       version: previousState.version + 1,
       discoveries: [...previousState.discoveries],
+      escapedThreats: previousState.escapedThreats,
       world: previousState.world,
     });
 
@@ -604,6 +607,7 @@ export class GameCore {
       },
       version: previousState.version + 1,
       discoveries: [...previousState.discoveries, action.elementId],
+      escapedThreats: previousState.escapedThreats,
       world: previousState.world,
     });
 
@@ -642,29 +646,60 @@ export class GameCore {
       return createRejectedTransition(previousState, 'inapplicable_action');
     }
 
+    const newlyEscapedThreats: string[] = [];
+    for (const entity of Object.values(previousState.world.entities)) {
+      if (
+        entity.role === 'threat' &&
+        typeof entity.threatRadius === 'number' &&
+        Number.isFinite(entity.threatRadius) &&
+        entity.threatRadius >= 0
+      ) {
+        const beforeDist = calculateDistance(previousState.world.playerPos, entity.position);
+        const afterDist = calculateDistance(target, entity.position);
+        if (beforeDist <= entity.threatRadius && afterDist > entity.threatRadius) {
+          newlyEscapedThreats.push(entity.id);
+        }
+      }
+    }
+
+    const nextEscapedThreats = [
+      ...previousState.escapedThreats,
+      ...newlyEscapedThreats,
+    ];
+
     const nextState = freezeGameState({
       player: previousState.player,
       pet: previousState.pet,
       version: previousState.version + 1,
       discoveries: [...previousState.discoveries],
+      escapedThreats: nextEscapedThreats,
       world: {
         ...previousState.world,
         playerPos: { x: target.x, y: target.y },
       },
     });
 
-    const event = freezeDomainEvent({
+    const moveEvent = freezeDomainEvent({
       type: 'pet_moved',
       playerId: previousState.player.id,
       petId: previousState.pet.id,
       position: { x: target.x, y: target.y },
     });
 
+    const escapeEvents = newlyEscapedThreats.map((threatId) =>
+      freezeDomainEvent({
+        type: 'pet_escaped_threat',
+        playerId: previousState.player.id,
+        petId: previousState.pet.id,
+        threatEntityId: threatId,
+      }),
+    );
+
     const transition = freezeTransition({
       accepted: true,
       previousState,
       state: nextState,
-      events: [event],
+      events: [moveEvent, ...escapeEvents],
     });
 
     this.#state = nextState;
@@ -700,6 +735,7 @@ export class GameCore {
       pet: previousState.pet,
       version: previousState.version + 1,
       discoveries: [...previousState.discoveries],
+      escapedThreats: previousState.escapedThreats,
       world: previousState.world,
     });
 
