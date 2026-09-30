@@ -1,8 +1,38 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {
+  GameCore,
+  freezeGameState,
+  type SpatialEntity,
+} from '@ai-pet-game/game-core';
 import { createApp } from '../src/app.js';
 import { SessionStore } from '../src/session-store.js';
 import { FakeGenerationProvider, startTestServer } from './test-helpers.js';
+
+function seedEntity(
+  sessionStore: SessionStore,
+  sessionId: string,
+  entity: SpatialEntity,
+): void {
+  const session = sessionStore.getSession(sessionId);
+  assert.ok(session);
+
+  const state = session.gameCore.getState();
+  Object.defineProperty(session, 'gameCore', {
+    value: new GameCore(
+      freezeGameState({
+        ...state,
+        world: {
+          ...state.world,
+          entities: {
+            ...state.world.entities,
+            [entity.id]: entity,
+          },
+        },
+      }),
+    ),
+  });
+}
 
 test('POST /sessions/:sessionId/actions handles greet_pet', async () => {
   const fakeProvider = new FakeGenerationProvider();
@@ -139,6 +169,229 @@ test('POST /sessions/:sessionId/actions handles explore with authoritative state
     assert.strictEqual(stateData.state.version, 1);
     assert.strictEqual(stateData.state.pet.interactionCount, 1);
     assert.deepStrictEqual(stateData.state.discoveries, ['glowing-crystal']);
+  } finally {
+    await testServer.close();
+  }
+});
+
+test('POST /sessions/:sessionId/actions moves the player through Game Core', async () => {
+  const sessionStore = new SessionStore(new FakeGenerationProvider());
+  const app = createApp(sessionStore);
+  const testServer = await startTestServer(app);
+
+  try {
+    const createRes = await fetch(testServer.baseUrl + '/sessions', { method: 'POST' });
+    const { sessionId, state } = await createRes.json() as any;
+    const actionRes = await fetch(testServer.baseUrl + '/sessions/' + sessionId + '/actions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'move',
+        position: { x: 215, y: 200 },
+        playerId: state.player.id,
+      }),
+    });
+
+    assert.strictEqual(actionRes.status, 200);
+    const actionData = await actionRes.json() as any;
+    assert.strictEqual(actionData.accepted, true);
+    assert.deepStrictEqual(actionData.state.world.playerPos, { x: 215, y: 200 });
+    assert.strictEqual(actionData.state.version, 1);
+  } finally {
+    await testServer.close();
+  }
+});
+
+test('POST /sessions/:sessionId/actions rejects malformed move positions', async () => {
+  const sessionStore = new SessionStore(new FakeGenerationProvider());
+  const app = createApp(sessionStore);
+  const testServer = await startTestServer(app);
+
+  try {
+    const createRes = await fetch(testServer.baseUrl + '/sessions', { method: 'POST' });
+    const { sessionId } = await createRes.json() as any;
+    const payloads = [
+      { type: 'move' },
+      { type: 'move', position: { x: '215', y: 200 } },
+      { type: 'move', position: { x: 215 } },
+    ];
+
+    for (const payload of payloads) {
+      const actionRes = await fetch(testServer.baseUrl + '/sessions/' + sessionId + '/actions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      assert.strictEqual(actionRes.status, 400);
+      const actionData = await actionRes.json() as any;
+      assert.strictEqual(actionData.error, 'INVALID_ACTION');
+    }
+  } finally {
+    await testServer.close();
+  }
+});
+
+test('POST /sessions/:sessionId/actions delegates out-of-bounds movement to Game Core', async () => {
+  const sessionStore = new SessionStore(new FakeGenerationProvider());
+  const app = createApp(sessionStore);
+  const testServer = await startTestServer(app);
+
+  try {
+    const createRes = await fetch(testServer.baseUrl + '/sessions', { method: 'POST' });
+    const { sessionId, state } = await createRes.json() as any;
+    const actionRes = await fetch(testServer.baseUrl + '/sessions/' + sessionId + '/actions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'move',
+        position: { x: -1, y: 200 },
+        playerId: state.player.id,
+      }),
+    });
+
+    assert.strictEqual(actionRes.status, 400);
+    const actionData = await actionRes.json() as any;
+    assert.strictEqual(actionData.accepted, false);
+    assert.strictEqual(actionData.rejectionReason, 'invalid_intent');
+    assert.deepStrictEqual(actionData.state.world.playerPos, { x: 200, y: 200 });
+  } finally {
+    await testServer.close();
+  }
+});
+
+test('POST /sessions/:sessionId/actions accepts an in-range interaction through Game Core', async () => {
+  const sessionStore = new SessionStore(new FakeGenerationProvider());
+  const app = createApp(sessionStore);
+  const testServer = await startTestServer(app);
+
+  try {
+    const createRes = await fetch(testServer.baseUrl + '/sessions', { method: 'POST' });
+    const { sessionId, state } = await createRes.json() as any;
+    seedEntity(sessionStore, sessionId, {
+      id: 'ancient-stone',
+      type: 'object',
+      label: 'Ancient Stone',
+      position: { x: 210, y: 200 },
+      state: 'visible',
+      interactionRadius: 20,
+    });
+    const actionRes = await fetch(testServer.baseUrl + '/sessions/' + sessionId + '/actions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'interact',
+        entityId: 'ancient-stone',
+        playerId: state.player.id,
+      }),
+    });
+
+    assert.strictEqual(actionRes.status, 200);
+    const actionData = await actionRes.json() as any;
+    assert.strictEqual(actionData.accepted, true);
+    assert.strictEqual(actionData.state.version, 1);
+    assert.strictEqual(actionData.events[0].type, 'entity_interacted');
+    assert.strictEqual(actionData.events[0].entityId, 'ancient-stone');
+  } finally {
+    await testServer.close();
+  }
+});
+
+test('POST /sessions/:sessionId/actions delegates out-of-range interaction to Game Core', async () => {
+  const sessionStore = new SessionStore(new FakeGenerationProvider());
+  const app = createApp(sessionStore);
+  const testServer = await startTestServer(app);
+
+  try {
+    const createRes = await fetch(testServer.baseUrl + '/sessions', { method: 'POST' });
+    const { sessionId, state } = await createRes.json() as any;
+    seedEntity(sessionStore, sessionId, {
+      id: 'distant-stone',
+      type: 'object',
+      label: 'Distant Stone',
+      position: { x: 300, y: 200 },
+      state: 'visible',
+      interactionRadius: 20,
+    });
+    const actionRes = await fetch(testServer.baseUrl + '/sessions/' + sessionId + '/actions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'interact',
+        entityId: 'distant-stone',
+        playerId: state.player.id,
+      }),
+    });
+
+    assert.strictEqual(actionRes.status, 400);
+    const actionData = await actionRes.json() as any;
+    assert.strictEqual(actionData.accepted, false);
+    assert.strictEqual(actionData.rejectionReason, 'inapplicable_action');
+  } finally {
+    await testServer.close();
+  }
+});
+
+test('POST /sessions/:sessionId/actions delegates unknown and inactive interactions to Game Core', async () => {
+  const sessionStore = new SessionStore(new FakeGenerationProvider());
+  const app = createApp(sessionStore);
+  const testServer = await startTestServer(app);
+
+  try {
+    const createRes = await fetch(testServer.baseUrl + '/sessions', { method: 'POST' });
+    const { sessionId, state } = await createRes.json() as any;
+    seedEntity(sessionStore, sessionId, {
+      id: 'discovered-stone',
+      type: 'object',
+      label: 'Discovered Stone',
+      position: { x: 210, y: 200 },
+      state: 'discovered',
+      interactionRadius: 20,
+    });
+
+    for (const entityId of ['missing-stone', 'discovered-stone']) {
+      const actionRes = await fetch(testServer.baseUrl + '/sessions/' + sessionId + '/actions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'interact',
+          entityId,
+          playerId: state.player.id,
+        }),
+      });
+      assert.strictEqual(actionRes.status, 400);
+      const actionData = await actionRes.json() as any;
+      assert.strictEqual(actionData.accepted, false);
+      assert.strictEqual(actionData.rejectionReason, 'inapplicable_action');
+    }
+  } finally {
+    await testServer.close();
+  }
+});
+
+test('POST /sessions/:sessionId/actions rejects malformed interact entity IDs', async () => {
+  const sessionStore = new SessionStore(new FakeGenerationProvider());
+  const app = createApp(sessionStore);
+  const testServer = await startTestServer(app);
+
+  try {
+    const createRes = await fetch(testServer.baseUrl + '/sessions', { method: 'POST' });
+    const { sessionId } = await createRes.json() as any;
+    const payloads = [
+      { type: 'interact' },
+      { type: 'interact', entityId: '' },
+      { type: 'interact', entityId: '   ' },
+    ];
+
+    for (const payload of payloads) {
+      const actionRes = await fetch(testServer.baseUrl + '/sessions/' + sessionId + '/actions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      assert.strictEqual(actionRes.status, 400);
+      const actionData = await actionRes.json() as any;
+      assert.strictEqual(actionData.error, 'INVALID_ACTION');
+    }
   } finally {
     await testServer.close();
   }

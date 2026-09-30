@@ -299,6 +299,45 @@ export function createApp(sessionStore: SessionStore = new SessionStore()) {
         },
         contextualElement,
       };
+    } else if (body.type === 'move') {
+      const position = body.position;
+      if (
+        !position ||
+        typeof position !== 'object' ||
+        !Number.isFinite(position.x) ||
+        !Number.isFinite(position.y)
+      ) {
+        res.status(400).json({
+          error: 'INVALID_ACTION',
+          message: 'Player action payload is invalid or missing action type',
+        });
+        return;
+      }
+
+      action = {
+        playerId,
+        type: 'move',
+        position: {
+          x: position.x,
+          y: position.y,
+        },
+      };
+    } else if (body.type === 'interact') {
+      const entityId =
+        typeof body.entityId === 'string' ? body.entityId.trim() : '';
+      if (!entityId) {
+        res.status(400).json({
+          error: 'INVALID_ACTION',
+          message: 'Player action payload is invalid or missing action type',
+        });
+        return;
+      }
+
+      action = {
+        playerId,
+        type: 'interact',
+        entityId,
+      };
     } else {
       action = {
         playerId,
