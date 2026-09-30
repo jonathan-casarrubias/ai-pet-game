@@ -87,6 +87,54 @@ test('POST /sessions/:sessionId/generate does not mutate authoritative GameState
   }
 });
 
+test('POST /sessions/:sessionId/generate applies accepted entity-spawn consequences', async () => {
+  const spawnedEntity = {
+    id: 'generated-creature-1',
+    type: 'creature' as const,
+    role: 'helper' as const,
+    label: 'Mosswing',
+    position: { x: 230, y: 180 },
+    state: 'visible' as const,
+    interactionRadius: 24,
+  };
+  const generator: GameplayGenerator = {
+    async generate(context) {
+      return createGameplayProposal(
+        context.generationPurpose,
+        context.sourceStateVersion,
+        context.gameplayContext.contextualElements,
+        context.gameplayContext.applicableCapabilityIds,
+        'A small helper appears beside the trail.',
+        undefined,
+        [{ type: 'spawn_entity', entity: spawnedEntity }],
+      );
+    },
+  };
+  const sessionStore = new SessionStore();
+  const session = sessionStore.createSession({ generator });
+  const app = createApp(sessionStore);
+  const testServer = await startTestServer(app);
+
+  try {
+    const genRes = await fetch(testServer.baseUrl + '/sessions/' + session.id + '/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ elementId: 'trail-marker' }),
+    });
+
+    assert.strictEqual(genRes.status, 200);
+    const genData = await genRes.json() as any;
+    assert.strictEqual(genData.state.version, 1);
+    assert.deepStrictEqual(genData.state.world.entities[spawnedEntity.id], spawnedEntity);
+    assert.deepStrictEqual(
+      session.gameCore.getState().world.entities[spawnedEntity.id],
+      spawnedEntity,
+    );
+  } finally {
+    await testServer.close();
+  }
+});
+
 test('POST /sessions/:sessionId/generate returns 404 for unknown session', async () => {
   const fakeProvider = new FakeGenerationProvider();
   const sessionStore = new SessionStore(fakeProvider);

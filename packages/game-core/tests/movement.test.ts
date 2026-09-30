@@ -27,9 +27,20 @@ test('Lumi starts at a deterministic position inside world bounds', () => {
 test('World bounds are present and deterministic', () => {
   const bounds = initialState.world.bounds;
   assert.strictEqual(bounds.minX, 0);
-  assert.strictEqual(bounds.minY, 0);
+  assert.strictEqual(bounds.minY, -400);
   assert.strictEqual(bounds.maxX, 400);
   assert.strictEqual(bounds.maxY, 400);
+});
+
+test('Movement remains valid through the extended bounded exploration depth', () => {
+  const gameCore = new GameCore(initialState);
+  const transition = gameCore.evaluate({
+    playerId: 'player-1',
+    type: 'move',
+    position: { x: 200, y: -400 },
+  });
+  assert.ok(transition.accepted);
+  assert.strictEqual(transition.state.world.playerPos.y, -400);
 });
 
 test('A valid movement action changes Lumi position', () => {
@@ -90,12 +101,12 @@ test('Movement outside world bounds is rejected', () => {
   assert.strictEqual(gameCore.getState().version, 0);
 });
 
-test('Movement outside world bounds is rejected for negative coordinates', () => {
+test('Movement below the extended world depth is rejected', () => {
   const gameCore = new GameCore(initialState);
   const transition = gameCore.evaluate({
     playerId: 'player-1',
     type: 'move',
-    position: { x: -1, y: -1 },
+    position: { x: 200, y: -401 },
   });
   assert.ok(!transition.accepted);
   assert.strictEqual(transition.rejectionReason, 'invalid_intent');

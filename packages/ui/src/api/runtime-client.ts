@@ -13,12 +13,43 @@ export type Pet = {
   interactionCount: number;
 };
 
+export type Position = { x: number; y: number };
+
+export type WorldBounds = {
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+};
+
+export type SpatialEntity = {
+  id: string;
+  type: 'object' | 'creature' | 'hazard';
+  role?: 'neutral' | 'threat' | 'helper';
+  label: string;
+  position: Position;
+  state: 'visible' | 'glowing' | 'discovered' | 'active' | 'escaped';
+  interactionRadius: number;
+  threatRadius?: number;
+};
+
 export type GameState = {
   player: Player;
   pet: Pet;
   version: number;
   discoveries: string[];
+  escapedThreats: string[];
+  world: {
+    bounds: WorldBounds;
+    playerPos: Position;
+    entities: Record<string, SpatialEntity>;
+  };
 };
+
+export type PlayerAction =
+  | { type: 'move'; position: Position }
+  | { type: 'interact'; entityId: string }
+  | { type: 'observe' | 'explore'; elementId: string };
 
 export type SessionCreatedResponse = {
   sessionId: string;
@@ -79,7 +110,7 @@ export class RuntimeClient {
 
   public async generate(
     sessionId: string,
-    elementId: string,
+    elementId?: string,
     purpose = 'adventure_narrative',
   ): Promise<GenerateResponse> {
     const res = await fetch(`${this.baseUrl}/sessions/${sessionId}/generate`, {
@@ -87,7 +118,7 @@ export class RuntimeClient {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         purpose,
-        elementId,
+        ...(elementId !== undefined ? { elementId } : {}),
       }),
     });
     if (!res.ok) {
@@ -99,7 +130,7 @@ export class RuntimeClient {
 
   public async submitAction(
     sessionId: string,
-    action: { type: string; elementId?: string },
+    action: PlayerAction,
   ): Promise<ActionResponse> {
     const res = await fetch(`${this.baseUrl}/sessions/${sessionId}/actions`, {
       method: 'POST',

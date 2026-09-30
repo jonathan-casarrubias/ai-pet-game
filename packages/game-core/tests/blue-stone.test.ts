@@ -138,7 +138,7 @@ test('unrelated state is preserved after blue-stone consequence application', ()
   assert.strictEqual(result.state.world.playerPos.y, 200);
   assert.deepStrictEqual(result.state.world.bounds, {
     minX: 0,
-    minY: 0,
+    minY: -400,
     maxX: 400,
     maxY: 400,
   });

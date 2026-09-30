@@ -1,13 +1,15 @@
-﻿import React from 'react';
+import React, { useCallback, useEffect, useRef } from 'react';
 import {
+  ActivityIndicator,
+  Platform,
+  SafeAreaView,
+  ScrollView,
+  StatusBar,
   StyleSheet,
   Text,
-  View,
   TouchableOpacity,
-  ScrollView,
-  ActivityIndicator,
-  SafeAreaView,
-  StatusBar,
+  View,
+  useWindowDimensions,
 } from 'react-native';
 import { GameWorldRenderer } from '../renderer/GameWorldRenderer';
 import type { PresentationModel } from '../presentation/presentation-model';
@@ -19,94 +21,158 @@ type GameScreenProps = {
   sessionId: string;
 };
 
-export const GameScreen: React.FC<GameScreenProps> = ({
-  presentation,
-  actions,
-}) => {
-  const handleStoneTap = () => {
-    void actions.generate('blue-stone');
+const MOVE_STEP = 32;
+const EXPLORATION_GENERATION_STEPS = 4;
+
+export const GameScreen: React.FC<GameScreenProps> = ({ presentation, actions }) => {
+  const { width, height } = useWindowDimensions();
+  const movementPending = useRef(false);
+  const isGeneratingRef = useRef(presentation.isGenerating);
+  const explorationMoves = useRef(0);
+  const startingY = useRef(presentation.playerPosition.y);
+  const playerPositionRef = useRef(presentation.playerPosition);
+  const worldBoundsRef = useRef(presentation.worldBounds);
+  isGeneratingRef.current = presentation.isGenerating;
+  playerPositionRef.current = presentation.playerPosition;
+  worldBoundsRef.current = presentation.worldBounds;
+
+  const move = useCallback(async (direction: 'up' | 'down') => {
+    if (isGeneratingRef.current || movementPending.current) return;
+    movementPending.current = true;
+    const current = playerPositionRef.current;
+    const bounds = worldBoundsRef.current;
+    const nextY = Math.max(
+      bounds.minY,
+      Math.min(
+        bounds.maxY,
+        current.y + (direction === 'up' ? -MOVE_STEP : MOVE_STEP),
+      ),
+    );
+    if (nextY === current.y) {
+      movementPending.current = false;
+      return;
+    }
+
+    try {
+      const accepted = await actions.move({
+        x: current.x,
+        y: nextY,
+      });
+      if (!accepted) return;
+      playerPositionRef.current = { x: current.x, y: nextY };
+
+      explorationMoves.current += 1;
+      if (explorationMoves.current >= EXPLORATION_GENERATION_STEPS) {
+        explorationMoves.current = 0;
+        void actions.generate('exploration-frontier');
+      }
+    } finally {
+      movementPending.current = false;
+    }
+  }, [actions.move]);
+
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return;
+      const target = event.target as HTMLElement | null;
+      if (target?.isContentEditable || target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA') return;
+      event.preventDefault();
+      if (event.repeat) return;
+      void move(event.key === 'ArrowUp' ? 'up' : 'down');
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [move]);
+
+  const handleEntitySelect = async (entityId: string) => {
+    if (presentation.isGenerating) return;
+    const accepted = await actions.interact(entityId);
+    if (accepted) void actions.generate(entityId);
   };
 
-  const handlePetTap = () => {
-    void actions.submitAction('observe', 'lumi');
-  };
-
-  const handleExploreAction = () => {
-    void actions.submitAction('explore', 'blue-stone');
-  };
-
-  const isGenerating = presentation.isGenerating;
+  const nearbyEntities = presentation.entities.filter(
+    (entity) => entity.isNearby && !entity.isEscapedThreat,
+  );
+  const activeThreats = presentation.entities.filter(
+    (entity) => entity.role === 'threat' && !entity.isEscapedThreat && entity.state !== 'escaped',
+  );
+  const trailDepth = Math.max(
+    0,
+    Math.round(Math.abs(startingY.current - presentation.playerPosition.y) / MOVE_STEP),
+  );
+  const sceneWidth = Math.min(width, 1040);
+  const sceneHeight = Math.min(560, Math.max(300, height * 0.55));
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="light-content" />
-      <View style={styles.container}>
-        <View style={styles.headerHud}>
-          <View>
-            <Text style={styles.titleText}>🐾 {presentation.petName}&apos;s World</Text>
-            <Text style={styles.subtitleText}>
-              Mood: <Text style={styles.highlightText}>{presentation.petVisualState}</Text>
-            </Text>
+      <StatusBar barStyle="dark-content" />
+      <View style={styles.page}>
+        <View style={styles.header}>
+          <View style={styles.brandBlock}>
+            <Text style={styles.eyebrow}>FIELD JOURNAL</Text>
+            <Text style={styles.title}>{presentation.petName}&apos;s trail</Text>
           </View>
-          <View style={styles.badge}>
-            <Text style={styles.badgeText}>
-              Interactions: {presentation.petInteractionCount}
-            </Text>
+          <View style={styles.depthReadout}>
+            <Text style={styles.depthNumber}>{String(trailDepth).padStart(2, '0')}</Text>
+            <Text style={styles.depthLabel}>steps explored</Text>
           </View>
         </View>
 
-        <View style={styles.worldWrapper}>
+        <View style={styles.worldFrame}>
           <GameWorldRenderer
             presentation={presentation}
-            onSelectPet={handlePetTap}
-            onSelectObject={handleStoneTap}
+            onMove={(direction) => void move(direction)}
+            onSelectEntity={(entityId) => void handleEntitySelect(entityId)}
+            width={sceneWidth}
+            height={sceneHeight}
           />
+          <View pointerEvents="none" style={styles.sceneCaption}>
+            <Text style={styles.sceneCaptionText}>THE TRAIL CONTINUES</Text>
+          </View>
         </View>
 
-        <ScrollView style={styles.hudScroll} contentContainerStyle={styles.hudContent}>
-          {presentation.activeNarrative ? (
-            <View style={styles.narrativeCard}>
-              <Text style={styles.narrativeHeader}>✨ Story Chapter</Text>
-              <Text style={styles.narrativeText}>{presentation.activeNarrative}</Text>
-            </View>
-          ) : (
-            <View style={styles.narrativeCardHint}>
-              <Text style={styles.hintText}>
-                Tap the glowing <Text style={styles.stoneHighlight}>Mysterious Stone</Text> or press the AI button below to channel magic!
-              </Text>
-            </View>
-          )}
-
-          {presentation.lastError && (
-            <View style={styles.errorCard}>
-              <Text style={styles.errorText}>⚠️ {presentation.lastError}</Text>
-            </View>
-          )}
-
-          <View style={styles.buttonRow}>
-            <TouchableOpacity
-              style={[styles.primaryButton, isGenerating && styles.disabledButton]}
-              onPress={handleStoneTap}
-              disabled={isGenerating}
-              activeOpacity={0.8}
-            >
-              {isGenerating ? (
-                <ActivityIndicator color="#ffffff" size="small" />
-              ) : (
-                <Text style={styles.buttonText}>✨ AI Channel Magic</Text>
-              )}
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.secondaryButton, isGenerating && styles.disabledButton]}
-              onPress={handleExploreAction}
-              disabled={isGenerating}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.secondaryButtonText}>🔍 Explore Stone</Text>
-            </TouchableOpacity>
+        <View style={styles.hud}>
+          <View style={styles.signalRow}>
+            <View style={[styles.signalDot, activeThreats.length > 0 && styles.dangerDot]} />
+            <Text style={styles.signalText}>
+              {activeThreats.length > 0
+                ? `${activeThreats.length} presence${activeThreats.length === 1 ? '' : 's'} in the wild`
+                : nearbyEntities.length > 0
+                  ? `Within reach · ${nearbyEntities[0]?.label}`
+                  : 'Quiet trail · keep exploring'}
+            </Text>
+            <Text style={styles.interactionCount}>{presentation.petInteractionCount} interactions</Text>
           </View>
-        </ScrollView>
+
+          <Text style={styles.feedbackText}>
+            {presentation.lastError ?? presentation.statusMessage ??
+              (nearbyEntities.length > 0
+                ? 'Tap a glowing shape to explore it.'
+                : 'Use ↑ / ↓ or swipe up / down to follow the trail.')}
+          </Text>
+
+          {presentation.activeNarrative ? (
+            <ScrollView style={styles.storyViewport}>
+              <Text style={styles.storyText}>{presentation.activeNarrative}</Text>
+            </ScrollView>
+          ) : null}
+
+          <TouchableOpacity
+            style={[styles.revealButton, presentation.isGenerating && styles.disabledButton]}
+            onPress={() => void actions.generate()}
+            disabled={presentation.isGenerating}
+            activeOpacity={0.84}
+          >
+            {presentation.isGenerating ? (
+              <ActivityIndicator color="#fffaf0" size="small" />
+            ) : (
+              <Text style={styles.revealButtonText}>
+                {presentation.entities.length === 0 ? 'Reveal what lies ahead' : 'Listen for what comes next'}
+              </Text>
+            )}
+          </TouchableOpacity>
+        </View>
       </View>
     </SafeAreaView>
   );
@@ -115,148 +181,136 @@ export const GameScreen: React.FC<GameScreenProps> = ({
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#090514',
+    backgroundColor: '#f3e8ca',
   },
-  container: {
+  page: {
     flex: 1,
-    backgroundColor: '#090514',
-  },
-  headerHud: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    backgroundColor: '#150d2a',
-    borderBottomWidth: 1,
-    borderBottomColor: '#2e1d52',
-  },
-  titleText: {
-    color: '#f3e8ff',
-    fontSize: 20,
-    fontWeight: '700',
-  },
-  subtitleText: {
-    color: '#a78bfa',
-    fontSize: 13,
-    marginTop: 2,
-  },
-  highlightText: {
-    color: '#e9d5ff',
-    fontWeight: '600',
-    textTransform: 'capitalize',
-  },
-  badge: {
-    backgroundColor: '#2e1d52',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#4c1d95',
-  },
-  badgeText: {
-    color: '#c4b5fd',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  worldWrapper: {
     width: '100%',
     alignItems: 'center',
-    backgroundColor: '#090514',
+    backgroundColor: '#f3e8ca',
   },
-  hudScroll: {
-    flex: 1,
-    backgroundColor: '#0f0a1c',
-  },
-  hudContent: {
-    padding: 16,
-    gap: 12,
-  },
-  narrativeCard: {
-    backgroundColor: '#1e1438',
-    padding: 16,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#3b2175',
-  },
-  narrativeHeader: {
-    color: '#ddd6fe',
-    fontSize: 14,
-    fontWeight: '700',
-    marginBottom: 6,
-  },
-  narrativeText: {
-    color: '#f5f3ff',
-    fontSize: 15,
-    lineHeight: 22,
-  },
-  narrativeCardHint: {
-    backgroundColor: '#161026',
-    padding: 14,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#291b47',
-  },
-  hintText: {
-    color: '#a78bfa',
-    fontSize: 14,
-    textAlign: 'center',
-    lineHeight: 20,
-  },
-  stoneHighlight: {
-    color: '#38bdf8',
-    fontWeight: '600',
-  },
-  errorCard: {
-    backgroundColor: '#450a0a',
-    padding: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#7f1d1d',
-  },
-  errorText: {
-    color: '#fca5a5',
-    fontSize: 13,
-  },
-  buttonRow: {
+  header: {
+    width: '100%',
+    maxWidth: 1040,
+    minHeight: 70,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
     flexDirection: 'row',
-    gap: 12,
-    marginTop: 4,
-  },
-  primaryButton: {
-    flex: 1,
-    backgroundColor: '#7c3aed',
-    paddingVertical: 14,
-    borderRadius: 14,
     alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#7c3aed',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-    elevation: 4,
+    justifyContent: 'space-between',
   },
-  buttonText: {
-    color: '#ffffff',
-    fontSize: 15,
+  brandBlock: {
+    gap: 2,
+  },
+  eyebrow: {
+    color: '#65806a',
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  title: {
+    color: '#273d35',
+    fontSize: 22,
+    fontWeight: '800',
+  },
+  depthReadout: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 7,
+  },
+  depthNumber: {
+    color: '#b35b40',
+    fontSize: 22,
+    fontWeight: '800',
+    fontVariant: ['tabular-nums'],
+  },
+  depthLabel: {
+    color: '#657266',
+    fontSize: 11,
     fontWeight: '700',
   },
-  secondaryButton: {
+  worldFrame: {
+    width: '100%',
+    maxWidth: 1040,
+    alignItems: 'center',
+    overflow: 'hidden',
+  },
+  sceneCaption: {
+    position: 'absolute',
+    top: 15,
+    alignSelf: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 3,
+    backgroundColor: 'rgba(37, 74, 55, 0.35)',
+  },
+  sceneCaptionText: {
+    color: '#f8efd8',
+    fontSize: 9,
+    fontWeight: '800',
+  },
+  hud: {
+    width: '100%',
+    maxWidth: 1040,
     flex: 1,
-    backgroundColor: '#1e293b',
-    paddingVertical: 14,
-    borderRadius: 14,
+    minHeight: 176,
+    paddingHorizontal: 20,
+    paddingTop: 13,
+    paddingBottom: 16,
+    backgroundColor: '#fffaf0',
+    gap: 10,
+  },
+  signalRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  signalDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#6e9a70',
+  },
+  dangerDot: {
+    backgroundColor: '#d65e47',
+  },
+  signalText: {
+    flex: 1,
+    color: '#43584c',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  interactionCount: {
+    color: '#788276',
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  feedbackText: {
+    color: '#68766b',
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  storyViewport: {
+    maxHeight: 58,
+  },
+  storyText: {
+    color: '#354a3d',
+    fontSize: 14,
+    lineHeight: 19,
+  },
+  revealButton: {
+    minHeight: 44,
+    paddingHorizontal: 18,
+    borderRadius: 5,
+    backgroundColor: '#b35b40',
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: '#334155',
   },
-  secondaryButtonText: {
-    color: '#38bdf8',
-    fontSize: 15,
-    fontWeight: '600',
+  revealButtonText: {
+    color: '#fffaf0',
+    fontSize: 14,
+    fontWeight: '800',
   },
   disabledButton: {
-    opacity: 0.6,
+    opacity: 0.62,
   },
 });

@@ -804,7 +804,7 @@ test('accepts a valid pet question and produces a bounded domain event', () => {
     discoveries: [],
     escapedThreats: [],
     world: {
-      bounds: { minX: 0, minY: 0, maxX: 400, maxY: 400 },
+      bounds: { minX: 0, minY: -400, maxX: 400, maxY: 400 },
       playerPos: { x: 200, y: 200 },
       entities: {},
     },

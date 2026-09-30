@@ -63,7 +63,7 @@ export function createInitialGameState(
     discoveries: [],
     escapedThreats: [],
     world: Object.freeze({
-      bounds: Object.freeze({ minX: 0, minY: 0, maxX: 400, maxY: 400 }),
+      bounds: Object.freeze({ minX: 0, minY: -400, maxX: 400, maxY: 400 }),
       playerPos: Object.freeze({ x: 200, y: 200 }),
       entities: Object.freeze({}),
     }),

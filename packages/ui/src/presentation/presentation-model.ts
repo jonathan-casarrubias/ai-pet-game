@@ -6,40 +6,34 @@
  */
 
 export type PetVisualState = 'idle' | 'excited' | 'curious' | 'happy' | 'celebrating';
-export type ObjectVisualState = 'hidden' | 'appearing' | 'visible' | 'glowing' | 'discovered';
-export type SceneBackground = 'meadow' | 'cave' | 'forest' | 'beach';
 
-export type SceneObject = {
+export type SceneEntity = {
   readonly id: string;
   readonly label: string;
-  readonly visualState: ObjectVisualState;
-  readonly isInteractable: boolean;
+  readonly type: 'object' | 'creature' | 'hazard';
+  readonly role: 'neutral' | 'threat' | 'helper';
+  readonly state: 'visible' | 'glowing' | 'discovered' | 'active' | 'escaped';
+  readonly position: { readonly x: number; readonly y: number };
+  readonly interactionRadius: number;
+  readonly isNearby: boolean;
+  readonly isEscapedThreat: boolean;
 };
 
 export type PresentationModel = {
-  readonly background: SceneBackground;
   readonly petVisualState: PetVisualState;
   readonly petName: string;
   readonly petInteractionCount: number;
-  readonly objects: readonly SceneObject[];
+  readonly playerPosition: { readonly x: number; readonly y: number };
+  readonly worldBounds: {
+    readonly minX: number;
+    readonly minY: number;
+    readonly maxX: number;
+    readonly maxY: number;
+  };
+  readonly entities: readonly SceneEntity[];
   readonly discoveries: readonly string[];
   readonly activeNarrative: string | null;
+  readonly statusMessage: string | null;
   readonly isGenerating: boolean;
   readonly lastError: string | null;
 };
-
-export function createInitialPresentationModel(petName: string): PresentationModel {
-  return {
-    background: 'meadow',
-    petVisualState: 'idle',
-    petName,
-    petInteractionCount: 0,
-    objects: [
-      { id: 'blue-stone', label: 'Mysterious Stone', visualState: 'glowing', isInteractable: true },
-    ],
-    discoveries: [],
-    activeNarrative: null,
-    isGenerating: false,
-    lastError: null,
-  };
-}

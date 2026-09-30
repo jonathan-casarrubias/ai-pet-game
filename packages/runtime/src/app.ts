@@ -163,6 +163,9 @@ export function createApp(sessionStore: SessionStore = new SessionStore()) {
           proposal,
           session.corrector,
         );
+        const application = session.gameCore.applyAcceptedGameplayContext(
+          resolution.context,
+        );
 
         res.status(200).json({
           resolution: {
@@ -189,7 +192,7 @@ export function createApp(sessionStore: SessionStore = new SessionStore()) {
             applicableCapabilityIds:
               resolution.context.gameplayContext.applicableCapabilityIds,
           },
-          state: session.gameCore.getState(),
+          state: application.state,
         });
       } catch (cause) {
         const errMessage = String(cause);
@@ -370,6 +373,7 @@ export function createApp(sessionStore: SessionStore = new SessionStore()) {
   // Global error handler
   app.use(
     (_err: unknown, _req: Request, res: Response, _next: NextFunction) => {
+      console.error('[Runtime] Unhandled error:', _err);
       res.status(500).json({
         error: 'INTERNAL_SERVER_ERROR',
         message: 'An unexpected internal error occurred',

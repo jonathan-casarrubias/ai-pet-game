@@ -1,151 +1,212 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import {
+  BlurMask,
   Canvas,
-  Rect,
   Circle,
   LinearGradient,
-  RadialGradient,
-  BlurMask,
   Path,
-  vec,
+  RadialGradient,
+  Rect,
   Skia,
+  vec,
 } from '@shopify/react-native-skia';
-import { StyleSheet, View, TouchableWithoutFeedback, Dimensions } from 'react-native';
+import {
+  Dimensions,
+  StyleSheet,
+  TouchableWithoutFeedback,
+  View,
+  type GestureResponderEvent,
+} from 'react-native';
+import { EntityRenderer } from './EntityRenderer';
 import { PetRenderer } from './PetRenderer';
-import { ObjectRenderer } from './ObjectRenderer';
 import type { PresentationModel } from '../presentation/presentation-model';
 
 type GameWorldRendererProps = {
   presentation: PresentationModel;
-  onSelectPet?: () => void;
-  onSelectObject?: (objectId: string) => void;
+  onMove: (direction: 'up' | 'down') => void;
+  onSelectEntity: (entityId: string) => void;
   width?: number;
   height?: number;
 };
 
 const DEFAULT_WIDTH = Dimensions.get('window').width || 390;
-const DEFAULT_HEIGHT = 380;
-
-const STARS = [
-  { x: 30, y: 35, r: 1.5 },
-  { x: 90, y: 60, r: 2.2 },
-  { x: 150, y: 25, r: 1.2 },
-  { x: 210, y: 75, r: 2.0 },
-  { x: 280, y: 40, r: 1.8 },
-  { x: 340, y: 85, r: 2.5 },
-  { x: 60, y: 120, r: 1.6 },
-  { x: 180, y: 110, r: 2.0 },
-  { x: 310, y: 130, r: 1.4 },
-];
+const DEFAULT_HEIGHT = 440;
 
 export const GameWorldRenderer: React.FC<GameWorldRendererProps> = ({
   presentation,
-  onSelectPet,
-  onSelectObject,
+  onMove,
+  onSelectEntity,
   width = DEFAULT_WIDTH,
   height = DEFAULT_HEIGHT,
 }) => {
-  const petX = width * 0.35;
-  const petY = height * 0.55;
+  const touchStartY = useRef<number | null>(null);
+  const ignoreNextPress = useRef(false);
+  const playerX = width * 0.5;
+  const playerY = height * 0.67;
+  const scale = Math.min(width / 260, height / 250);
+  const depth = presentation.worldBounds.maxY - presentation.playerPosition.y;
+  const pathSway = Math.sin(depth * 0.018) * width * 0.025;
 
-  const stoneX = width * 0.72;
-  const stoneY = height * 0.60;
-
-  const groundPath = Skia.Path.Make();
-  groundPath.moveTo(0, height * 0.50);
-  groundPath.cubicTo(
-    width * 0.3,
-    height * 0.45,
-    width * 0.7,
-    height * 0.55,
-    width,
+  const trailPath = Skia.Path.Make();
+  trailPath.moveTo(width * 0.47 + pathSway * 0.2, height * 0.22);
+  trailPath.cubicTo(
+    width * 0.42 + pathSway,
     height * 0.48,
+    width * 0.60 + pathSway,
+    height * 0.66,
+    width * 0.79 + pathSway * 0.3,
+    height,
   );
-  groundPath.lineTo(width, height);
-  groundPath.lineTo(0, height);
-  groundPath.close();
+  trailPath.lineTo(width * 0.20 + pathSway * 0.3, height);
+  trailPath.cubicTo(
+    width * 0.41 + pathSway,
+    height * 0.66,
+    width * 0.34 + pathSway,
+    height * 0.46,
+    width * 0.47 + pathSway * 0.2,
+    height * 0.22,
+  );
+  trailPath.close();
 
-  const handleTouch = (evt: { nativeEvent: { locationX: number; locationY: number } }) => {
-    const { locationX, locationY } = evt.nativeEvent;
+  const trailEdge = Skia.Path.Make();
+  trailEdge.moveTo(width * 0.47 + pathSway * 0.2, height * 0.22);
+  trailEdge.cubicTo(
+    width * 0.42 + pathSway,
+    height * 0.48,
+    width * 0.60 + pathSway,
+    height * 0.66,
+    width * 0.79 + pathSway * 0.3,
+    height,
+  );
 
-    const distPet = Math.hypot(locationX - petX, locationY - petY);
-    if (distPet <= 55) {
-      onSelectPet?.();
-      return;
-    }
+  const foliage = Array.from({ length: 9 }, (_, index) => {
+    const range = height + 150;
+    const rawY = index * 112 + depth * 0.72;
+    const y = ((rawY % range) + range) % range - 75;
+    const inset = (index % 3) * width * 0.025;
+    return { y, leftX: width * 0.06 + inset, rightX: width * 0.94 - inset };
+  });
 
-    const distStone = Math.hypot(locationX - stoneX, locationY - stoneY);
-    if (distStone <= 50) {
-      onSelectObject?.('blue-stone');
-      return;
+  const positionedEntities = presentation.entities.map((entity) => ({
+    entity,
+    x: playerX + (entity.position.x - presentation.playerPosition.x) * scale,
+    y: playerY + (entity.position.y - presentation.playerPosition.y) * scale,
+  }));
+
+  const handleTouchStart = (event: GestureResponderEvent) => {
+    touchStartY.current = event.nativeEvent.pageY;
+  };
+
+  const handleTouchEnd = (event: GestureResponderEvent) => {
+    if (touchStartY.current === null) return;
+    const deltaY = event.nativeEvent.pageY - touchStartY.current;
+    touchStartY.current = null;
+    if (Math.abs(deltaY) < 42) return;
+    ignoreNextPress.current = true;
+    onMove(deltaY < 0 ? 'up' : 'down');
+    setTimeout(() => {
+      ignoreNextPress.current = false;
+    }, 250);
+  };
+
+  const handleTouchMove = (event: GestureResponderEvent) => {
+    if (
+      touchStartY.current !== null &&
+      Math.abs(event.nativeEvent.pageY - touchStartY.current) > 10
+    ) {
+      event.preventDefault();
     }
   };
 
-  const blueStoneObject = presentation.objects.find((o) => o.id === 'blue-stone');
+  const handlePress = (event: GestureResponderEvent) => {
+    if (ignoreNextPress.current) {
+      ignoreNextPress.current = false;
+      return;
+    }
+    const { locationX, locationY } = event.nativeEvent;
+    let closest: (typeof positionedEntities)[number] | undefined;
+    let closestDistance = 48;
+    for (const candidate of positionedEntities) {
+      const distance = Math.hypot(locationX - candidate.x, locationY - candidate.y);
+      if (distance < closestDistance) {
+        closest = candidate;
+        closestDistance = distance;
+      }
+    }
+    if (closest) onSelectEntity(closest.entity.id);
+  };
 
   return (
-    <TouchableWithoutFeedback onPress={handleTouch}>
-      <View style={[styles.container, { width, height }]}>
+    <TouchableWithoutFeedback onPress={handlePress}>
+      <View
+        style={[styles.container, { width, height }]}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+      >
         <Canvas style={{ width, height }}>
           <Rect x={0} y={0} width={width} height={height}>
             <LinearGradient
               start={vec(0, 0)}
               end={vec(0, height)}
-              colors={['#090514', '#150d2a', '#241442']}
+              colors={['#b9d7bb', '#8bb58c', '#587f61', '#315d49']}
             />
           </Rect>
 
-          <Circle cx={width * 0.85} cy={60} r={28}>
+          <Circle cx={width * 0.55} cy={height * 0.18} r={width * 0.34}>
             <RadialGradient
-              c={vec(width * 0.85 - 5, 55)}
-              r={30}
-              colors={['#fffbeb', '#fde68a']}
+              c={vec(width * 0.55, height * 0.18)}
+              r={width * 0.34}
+              colors={['rgba(255, 238, 183, 0.76)', 'rgba(255, 238, 183, 0)']}
             />
-          </Circle>
-          <Circle cx={width * 0.85} cy={60} r={40}>
-            <RadialGradient
-              c={vec(width * 0.85, 60)}
-              r={40}
-              colors={['rgba(253, 230, 138, 0.3)', 'rgba(253, 230, 138, 0)']}
-            />
-            <BlurMask blur={10} style="normal" />
+            <BlurMask blur={18} style="normal" />
           </Circle>
 
-          {STARS.map((star, idx) => (
-            <Circle
-              key={idx}
-              cx={(star.x / 390) * width}
-              cy={(star.y / 380) * height}
-              r={star.r}
-              color="#ffffff"
-              opacity={0.85}
-            />
+          {foliage.map((leaf, index) => (
+            <React.Fragment key={index}>
+              <Circle
+                cx={leaf.leftX}
+                cy={leaf.y}
+                r={34 + (index % 3) * 9}
+                color={index % 2 === 0 ? '#397051' : '#4c815a'}
+                opacity={0.78}
+              />
+              <Circle
+                cx={leaf.rightX}
+                cy={leaf.y + 38}
+                r={38 + (index % 2) * 10}
+                color={index % 2 === 0 ? '#32694d' : '#5a8758'}
+                opacity={0.76}
+              />
+            </React.Fragment>
           ))}
 
-          <Path path={groundPath}>
+          <Path path={trailPath}>
             <LinearGradient
-              start={vec(0, height * 0.45)}
-              end={vec(0, height)}
-              colors={['#166534', '#14532d', '#052e16']}
+              start={vec(width * 0.5, height * 0.2)}
+              end={vec(width * 0.5, height)}
+              colors={['#d8c798', '#bca477', '#937451']}
             />
           </Path>
+          <Path
+            path={trailEdge}
+            color="rgba(244, 224, 174, 0.55)"
+            style="stroke"
+            strokeWidth={3}
+          />
+
+          {positionedEntities
+            .filter(({ y }) => y > -60 && y < height + 60)
+            .map(({ entity, x, y }) => (
+              <EntityRenderer key={entity.id} entity={entity} x={x} y={y} />
+            ))}
 
           <PetRenderer
-            x={petX}
-            y={petY}
+            x={playerX}
+            y={playerY}
             visualState={presentation.petVisualState}
             name={presentation.petName}
           />
-
-          {blueStoneObject && (
-            <ObjectRenderer
-              id={blueStoneObject.id}
-              label={blueStoneObject.label}
-              x={stoneX}
-              y={stoneY}
-              visualState={blueStoneObject.visualState}
-            />
-          )}
         </Canvas>
       </View>
     </TouchableWithoutFeedback>
@@ -155,6 +216,6 @@ export const GameWorldRenderer: React.FC<GameWorldRendererProps> = ({
 const styles = StyleSheet.create({
   container: {
     overflow: 'hidden',
-    backgroundColor: '#090514',
+    backgroundColor: '#72956e',
   },
 });
